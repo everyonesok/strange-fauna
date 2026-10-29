@@ -138,6 +138,25 @@ soundButton.addEventListener('click', () => {
   soundButton.textContent = toggleSound() ? '🔊 Sound on' : '🔇 Sound off';
 });
 
+// Play / pause the walk. Instead of freezing instantly, a spring eases the
+// walk speed between 1 (walking) and 0 (standing), so the creature slows to a halt.
+const walkSpeed = makeSpring(1);
+const walkButton = document.getElementById('walk');
+function toggleWalk() {
+  const walking = walkSpeed.target === 0; // flip the current state
+  walkSpeed.target = walking ? 1 : 0;
+  walkButton.textContent = walking ? '⏸ Pause' : '▶ Play';
+  walkButton.setAttribute('aria-label', walking ? 'Pause walking' : 'Resume walking');
+}
+walkButton.addEventListener('click', toggleWalk);
+window.addEventListener('keydown', (e) => {
+  // Skip when a button or slider has focus: space already "clicks" a focused
+  // button, so handling it here too would toggle twice.
+  if (e.code !== 'Space' || e.target.closest('button, input')) return;
+  e.preventDefault(); // stop the page from scrolling
+  toggleWalk();
+});
+
 // Drag to orbit the camera; let go and it springs back to profile
 const cam = makeSpring(0);
 let dragging = false;
@@ -155,7 +174,8 @@ renderer.domElement.addEventListener('pointerup', () => {
 
 // ----- Animation loop ------------------------------------------------------
 let last = performance.now();
-let time = 0;
+let time = 0;     // "life clock": always runs (tail sway, springs, camera)
+let walkTime = 0; // "walk clock": only advances while walking (steps, bob, ground)
 const hip = new Vector3();
 // Each leg's cycle position from the previous frame, used to detect landings
 const lastLegPhase = [0, 0.5];
@@ -167,8 +187,14 @@ renderer.setAnimationLoop((now) => {
 
   stepSpring(tail, dt);
   stepSpring(cam, dt, dragging ? 400 : 20, dragging ? 40 : 7);
+  // stiffness 25 / damping 10 = "critically damped": smooth, no overshoot
+  // (an overshoot would make the creature briefly walk backward)
+  stepSpring(walkSpeed, dt, 25, 10);
+  // A spring only *approaches* 0 and never quite gets there, so treat
+  // anything below 0.1% speed as fully stopped.
+  if (walkSpeed.value > 0.001) walkTime += dt * walkSpeed.value;
 
-  const phase = (time / WALK.cycle) % 1;
+  const phase = (walkTime / WALK.cycle) % 1;
 
   // Body bobs down each time a foot lands (twice per cycle)
   const bob = -0.06 * Math.cos(phase * Math.PI * 4);
@@ -196,7 +222,7 @@ renderer.setAnimationLoop((now) => {
   updateTail(tail.value, time);
   uniforms.uTailAmount.value = tail.value;
   uniforms.uTime.value = time;
-  uniforms.uScroll.value = time * GROUND_SPEED;
+  uniforms.uScroll.value = walkTime * GROUND_SPEED;
   uniforms.uCamAngle.value = cam.value;
 
   renderer.render(scene, camera);
