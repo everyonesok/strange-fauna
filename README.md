@@ -50,3 +50,5 @@ Planned next:
 - Legs are placed with two-bone inverse kinematics (IK), so feet land on the ground correctly at any body size.
 - Sound is generated with the Web Audio API. There are no audio files.
 - **[Vite](https://vite.dev)** runs the local dev server.
+
+The reasoning behind these choices, and what we learned building them, is recorded in [Architecture Decision Records](docs/adr/README.md).
