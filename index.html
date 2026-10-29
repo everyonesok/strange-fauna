@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Strange Fauna — spike</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #1a0f24; }
+      canvas { display: block; cursor: grab; touch-action: none; }
+      canvas:active { cursor: grabbing; }
+
+      /* Little title, top-left */
+      .title {
+        position: fixed; top: 20px; left: 24px;
+        font: 600 14px/1 system-ui, sans-serif; letter-spacing: 0.3em;
+        color: #fbe3d4; opacity: 0.8;
+      }
+      .hint { display: block; margin-top: 8px; font-weight: 400; letter-spacing: 0.05em; opacity: 0.6; }
+
+      /* Slider panel, bottom-centre */
+      .controls {
+        position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%);
+        display: flex; align-items: center; gap: 14px;
+        padding: 14px 22px; border-radius: 999px;
+        background: rgba(30, 15, 45, 0.55); backdrop-filter: blur(8px);
+        color: #fbe3d4; font: 500 14px system-ui, sans-serif;
+      }
+      .controls input { width: min(260px, 50vw); accent-color: #f27a6c; }
+      .controls button {
+        border: 1px solid rgba(251, 227, 212, 0.35); border-radius: 999px;
+        background: none; color: inherit; font: inherit; padding: 6px 12px; cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="title">STRANGE FAUNA <span class="hint">drag to rotate</span></div>
+
+    <div class="controls">
+      <label for="tail">Tail</label>
+      <input id="tail" type="range" min="0" max="1" step="0.001" value="0" />
+      <!-- Browsers block sound until the user clicks something, so sound starts off -->
+      <button id="sound" type="button">🔇 Sound off</button>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
