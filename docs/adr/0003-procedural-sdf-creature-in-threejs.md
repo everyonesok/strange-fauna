@@ -1,6 +1,6 @@
 # 0003. Draw the creature procedurally with SDFs in a Three.js shader
 
-- **Status:** Accepted
+- **Status:** Superseded by [0007](0007-embrace-2d-cel-animation.md)
 - **Date:** 2026-10-28
 
 ## Context
