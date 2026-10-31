@@ -1,0 +1,206 @@
+{
+  "name": "bear-rhino-beetle",
+  "frame": [
+    2368,
+    1776
+  ],
+  "ground": 1584,
+  "gait": {
+    "cycle": 2.1,
+    "duty": 0.68,
+    "stride": 190,
+    "lift": 35,
+    "peel": 25,
+    "bob": 6,
+    "pitch": 0.5,
+    "phase": {
+      "near-hind-leg": 0,
+      "near-front-leg": 0.25,
+      "far-hind-leg": 0.5,
+      "far-front-leg": 0.75
+    },
+    "reach": {
+      "near-hind-leg": 40,
+      "far-hind-leg": 80,
+      "near-front-leg": 100,
+      "far-front-leg": 140
+    }
+  },
+  "notes": "Same format as rabbit-bat-snake/rig.json (see its notes). Concept made by AI from the hare drawing (2400 px), scaled into the shared frame. The shell rides on the body; the near legs are in front, with anchored tops.",
+  "parts": [
+    {
+      "name": "far-hind-leg",
+      "image": "far-hind-leg.png",
+      "pivot": [
+        194,
+        16
+      ],
+      "at": [
+        900,
+        1110
+      ],
+      "scale": 1,
+      "rotate": 0,
+      "knee": [
+        910,
+        1300
+      ],
+      "ankle": [
+        890,
+        1444
+      ],
+      "toe": [
+        1136,
+        1532
+      ],
+      "anchor": 0.4
+    },
+    {
+      "name": "far-front-leg",
+      "image": "far-front-leg.png",
+      "pivot": [
+        160,
+        126
+      ],
+      "at": [
+        1612,
+        1000
+      ],
+      "scale": 1,
+      "rotate": 0,
+      "knee": [
+        1644,
+        1300
+      ],
+      "ankle": [
+        1770,
+        1476
+      ],
+      "toe": [
+        1980,
+        1552
+      ],
+      "anchor": 0.4
+    },
+    {
+      "name": "tail",
+      "image": "tail.png",
+      "pivot": [
+        88,
+        134
+      ],
+      "at": [
+        380,
+        770
+      ],
+      "scale": 1,
+      "rotate": 0
+    },
+    {
+      "name": "torso",
+      "image": "torso.png",
+      "pivot": [
+        770,
+        406
+      ],
+      "at": [
+        1120,
+        940
+      ],
+      "scale": 1,
+      "rotate": 0
+    },
+    {
+      "name": "shell",
+      "image": "shell.png",
+      "pivot": [
+        641,
+        400
+      ],
+      "at": [
+        1120,
+        660
+      ],
+      "scale": 1,
+      "rotate": 0
+    },
+    {
+      "name": "near-hind-leg",
+      "image": "near-hind-leg.png",
+      "pivot": [
+        304,
+        156
+      ],
+      "at": [
+        544,
+        910
+      ],
+      "scale": 1,
+      "rotate": 0,
+      "knee": [
+        610,
+        1150
+      ],
+      "ankle": [
+        320,
+        1400
+      ],
+      "toe": [
+        510,
+        1556
+      ],
+      "anchor": 0.4
+    },
+    {
+      "name": "near-front-leg",
+      "image": "near-front-leg.png",
+      "pivot": [
+        158,
+        196
+      ],
+      "at": [
+        1290,
+        960
+      ],
+      "scale": 1,
+      "rotate": 0,
+      "knee": [
+        1300,
+        1230
+      ],
+      "ankle": [
+        1360,
+        1476
+      ],
+      "toe": [
+        1560,
+        1584
+      ],
+      "anchor": 0.4
+    },
+    {
+      "name": "head",
+      "image": "head.png",
+      "pivot": [
+        70,
+        448
+      ],
+      "at": [
+        1700,
+        760
+      ],
+      "scale": 1,
+      "rotate": 0
+    }
+  ],
+  "alternates": {
+    "head-blink": {
+      "part": "head",
+      "image": "head-blink.png",
+      "pivot": [
+        70,
+        448
+      ]
+    }
+  }
+}

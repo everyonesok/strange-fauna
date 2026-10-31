@@ -40,20 +40,35 @@ export function makeLeg(part, texture, order) {
   geometry.translate(left + w / 2, -(top + h / 2), 0);
   const restPositions = geometry.attributes.position.array.slice();
 
-  // Pin each grid point to the bones: the closer a bone, the stronger the pin
+  // Pin each grid point to the bones: the closer a bone, the stronger the pin.
+  // A 4th "bone" is the body itself (see ANCHOR below).
   const count = geometry.attributes.position.count;
-  const weights = new Float32Array(count * 3);
+  const weights = new Float32Array(count * 4);
   const p = new THREE.Vector2();
+  // ANCHOR (optional, "anchor" in the rig, a share of the thigh's length):
+  // the top of the leg stays attached to the body like skin, instead of
+  // turning rigidly with the thigh. Above the hip it only moves with the body;
+  // from the hip down to `anchor` of the way to the knee it blends into the
+  // thigh. Without it, a leg whose top tucks under the body swings that top
+  // out below the belly.
+  const anchor = part.anchor ?? 0;
+  const thighDir = rest.knee.clone().sub(rest.hip);
+  const thighLength = thighDir.length();
+  thighDir.normalize();
   for (let i = 0; i < count; i++) {
     p.set(restPositions[i * 3], restPositions[i * 3 + 1]);
     let total = 0;
     for (let b = 0; b < 3; b++) {
       const d = distToSegment(p, bones[b][0], bones[b][1]);
       const pull = 1 / (d * d + SOFTNESS * SOFTNESS) ** 2;
-      weights[i * 3 + b] = pull;
+      weights[i * 4 + b] = pull;
       total += pull;
     }
-    for (let b = 0; b < 3; b++) weights[i * 3 + b] /= total;
+    // how far down the thigh this point is: below 0 = above the hip
+    const along = p.clone().sub(rest.hip).dot(thighDir) / thighLength;
+    const body = anchor > 0 ? 1 - THREE.MathUtils.smoothstep(along, 0, anchor) : 0;
+    for (let b = 0; b < 3; b++) weights[i * 4 + b] *= (1 - body) / total;
+    weights[i * 4 + 3] = body;
   }
 
   const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthTest: false });
@@ -103,6 +118,7 @@ export function poseLeg(leg, hip, toe, pawTilt = 0) {
     { from: rest.hip, to: hip, turn: angleOf(hip, knee) - angleOf(rest.hip, rest.knee), scale: stretch },
     { from: rest.knee, to: knee, turn: angleOf(knee, ankle) - angleOf(rest.knee, rest.ankle), scale: stretch },
     { from: rest.ankle, to: ankle, turn: pawTilt, scale: 1 },
+    { from: rest.hip, to: hip, turn: 0, scale: 1 }, // the body: just carried along
   ].map((m) => ({ ...m, cos: Math.cos(m.turn) * m.scale, sin: Math.sin(m.turn) * m.scale }));
 
   // 4. Move every grid point by the blend of its bones' moves
@@ -111,8 +127,8 @@ export function poseLeg(leg, hip, toe, pawTilt = 0) {
   for (let i = 0; i < pos.count; i++) {
     const x = src[i * 3], y = src[i * 3 + 1];
     let nx = 0, ny = 0;
-    for (let k = 0; k < 3; k++) {
-      const w = wts[i * 3 + k];
+    for (let k = 0; k < 4; k++) {
+      const w = wts[i * 4 + k];
       if (w < 0.001) continue;
       const m = moves[k], dx = x - m.from.x, dy = y - m.from.y;
       nx += w * (m.to.x + m.cos * dx - m.sin * dy);

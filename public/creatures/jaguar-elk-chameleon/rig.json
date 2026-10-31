@@ -1,0 +1,192 @@
+{
+  "name": "jaguar-elk-chameleon",
+  "frame": [
+    2368,
+    1776
+  ],
+  "ground": 1645,
+  "gait": {
+    "cycle": 1.9,
+    "duty": 0.65,
+    "stride": 230,
+    "lift": 50,
+    "peel": 18,
+    "bob": 4,
+    "pitch": 0.5,
+    "phase": {
+      "near-hind-leg": 0,
+      "near-front-leg": 0.25,
+      "far-hind-leg": 0.5,
+      "far-front-leg": 0.75
+    },
+    "reach": {
+      "near-hind-leg": 0,
+      "far-hind-leg": 60,
+      "near-front-leg": 180,
+      "far-front-leg": 60
+    }
+  },
+  "notes": "Same format as rabbit-bat-snake/rig.json (see its notes). Cut from a 1024 px drawing, scaled 2.3125x into the shared frame. The near legs are listed before the torso: they tuck behind the body, whose edge has no outline where they start.",
+  "parts": [
+    {
+      "name": "far-hind-leg",
+      "image": "far-hind-leg.png",
+      "pivot": [
+        200,
+        44
+      ],
+      "at": [
+        1138,
+        990
+      ],
+      "scale": 1,
+      "rotate": 0,
+      "knee": [
+        1006,
+        1272
+      ],
+      "ankle": [
+        1226,
+        1561
+      ],
+      "toe": [
+        1330,
+        1623
+      ],
+      "anchor": 0.4
+    },
+    {
+      "name": "far-front-leg",
+      "image": "far-front-leg.png",
+      "pivot": [
+        146,
+        7
+      ],
+      "at": [
+        1508,
+        1087
+      ],
+      "scale": 1,
+      "rotate": 0,
+      "knee": [
+        1445,
+        1364
+      ],
+      "ankle": [
+        1445,
+        1561
+      ],
+      "toe": [
+        1538,
+        1642
+      ],
+      "anchor": 0.4
+    },
+    {
+      "name": "tail",
+      "image": "tail.png",
+      "pivot": [
+        684,
+        81
+      ],
+      "at": [
+        786,
+        879
+      ],
+      "scale": 1,
+      "rotate": 0
+    },
+    {
+      "name": "near-hind-leg",
+      "image": "near-hind-leg.png",
+      "pivot": [
+        331,
+        32
+      ],
+      "at": [
+        925,
+        1052
+      ],
+      "scale": 1,
+      "rotate": 0,
+      "knee": [
+        728,
+        1191
+      ],
+      "ankle": [
+        671,
+        1554
+      ],
+      "toe": [
+        786,
+        1642
+      ],
+      "anchor": 0.4
+    },
+    {
+      "name": "near-front-leg",
+      "image": "near-front-leg.png",
+      "pivot": [
+        162,
+        -24
+      ],
+      "at": [
+        1700,
+        1092
+      ],
+      "scale": 1,
+      "rotate": 0,
+      "knee": [
+        1901,
+        1353
+      ],
+      "ankle": [
+        2058,
+        1561
+      ],
+      "toe": [
+        2174,
+        1630
+      ],
+      "anchor": 0.4
+    },
+    {
+      "name": "torso",
+      "image": "torso.png",
+      "pivot": [
+        597,
+        526
+      ],
+      "at": [
+        1295,
+        994
+      ],
+      "scale": 1,
+      "rotate": 0
+    },
+    {
+      "name": "head",
+      "image": "head.png",
+      "pivot": [
+        692,
+        679
+      ],
+      "at": [
+        1792,
+        694
+      ],
+      "scale": 1,
+      "rotate": 0
+    }
+  ],
+  "alternates": {
+    "head-blink": {
+      "part": "head",
+      "image": "head-blink.png",
+      "pivot": [
+        692,
+        679
+      ]
+    }
+  }
+}

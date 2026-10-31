@@ -61,6 +61,17 @@ the far leg takes its own uncovered top from the same edit:
 --fill=far-hind-leg:near-hind-leg:<no-near-hind.jpg>:<no-near-hind-map.jpg>
 ```
 
+**When the model won't remove a leg** (the jaguar-elk-chameleon): Nano Banana 2
+redrew the scaled hind leg in brown instead of removing it, four times, even
+when the leg was erased first and it was only asked to repair the hole. It
+wants four legs. The way out is to **tuck the near legs behind the body**:
+list them before the torso in the cutter's palette. The body's edge then stays
+still on top, the leg's top slides around unseen underneath, and no removal
+edit is needed. It suits drawings where the haunch and shoulder have no
+outline where the leg starts (a cut edge in front would show as it swings).
+Give those legs an `"anchor"` in the rig (see below), so their tops stay
+attached to the body.
+
 **3. Cut and check**
 
 ```bash
@@ -74,6 +85,15 @@ python3 tools/onion_skin.py rabbit-bat-snake <out.png>
   check the split.
 - Set each part's pivot (joint) in `rig.json`; `at` is the same joint in the
   frame, and scale is always 1.
+- Every creature shares the same frame (2368 × 1776). A drawing of another
+  size is scaled to fit it (the jaguar's 1024 px drawing by 2.3125), so its
+  joints in the rig are its drawing's pixels times that.
+- Put each leg's hip a little **inside** the body, where a real hip joint is,
+  not on the belly line. Turning around a point on the edge swings the leg's
+  top out below the belly.
+- `"anchor": 0.4` on a leg keeps everything above its hip attached to the
+  body, blending into the turning thigh over the top 40% of the thigh, like
+  skin stretching. Use it when a leg's top tucks under the body.
 **4. Swap-in images** (a blink, a folded wing): more Nano Banana 2 edits of the
 original, in the same framing, cut with `--variant`.
 

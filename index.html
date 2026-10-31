@@ -25,17 +25,20 @@
         color: #fbe3d4; font: 500 14px system-ui, sans-serif;
       }
       .controls input { width: min(260px, 50vw); accent-color: #f27a6c; }
-      .controls button {
+      .controls button, .controls select {
         border: 1px solid rgba(251, 227, 212, 0.35); border-radius: 999px;
         background: none; color: inherit; font: inherit; padding: 6px 12px; cursor: pointer;
         white-space: nowrap; /* keep icon + label on one line */
       }
+      .controls option { color: #222; } /* the open list has a light background */
     </style>
   </head>
   <body>
     <div class="title">STRANGE FAUNA <span class="hint">space to pause</span></div>
 
     <div class="controls">
+      <!-- Which creature walks (filled in by main.js) -->
+      <select id="creature" aria-label="Creature"></select>
       <!-- Stops the walk; the creature stays alive. Spacebar works too. -->
       <button id="walk" type="button" aria-label="Pause walking">⏸ Pause</button>
       <!-- Browsers block sound until the user clicks something, so sound starts off -->

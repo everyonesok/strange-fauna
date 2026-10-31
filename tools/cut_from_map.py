@@ -40,7 +40,7 @@ Usage (from the project root):
 import json
 import sys
 from pathlib import Path
-from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageStat
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageMath, ImageStat
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -71,6 +71,31 @@ PARTS = {
         ("near-front-leg", (255, 0, 255)),   # magenta
         ("wing",           (0, 0, 255)),     # blue
         ("head",           (255, 0, 0)),     # red
+    ],
+    # Here the near legs go BEHIND the body: in this drawing the scaled rump
+    # and the spotted shoulder have no outline where the legs start, so a leg
+    # in front would show a cut edge as it swings. Behind, the body's edge
+    # stays still and the leg's top slides around unseen underneath.
+    "jaguar-elk-chameleon": [
+        ("far-hind-leg",   (126, 0, 126)),   # purple
+        ("far-front-leg",  (1, 255, 253)),   # cyan
+        ("tail",           (1, 254, 4)),     # green
+        ("near-hind-leg",  (255, 163, 0)),   # orange
+        ("near-front-leg", (254, 0, 254)),   # magenta
+        ("torso",          (255, 255, 1)),   # yellow
+        ("head",           (254, 0, 2)),     # red
+    ],
+    # Drawn with clear outlines around the near thigh and shoulder, so the
+    # near legs stay in front, like the hare's
+    "bear-rhino-beetle": [
+        ("far-hind-leg",   (126, 0, 126)),   # purple
+        ("far-front-leg",  (1, 255, 253)),   # cyan
+        ("tail",           (1, 254, 2)),     # bright green
+        ("torso",          (255, 255, 1)),   # yellow
+        ("shell",          (9, 194, 2)),     # darker green
+        ("near-hind-leg",  (255, 163, 0)),   # orange
+        ("near-front-leg", (253, 0, 253)),   # magenta
+        ("head",           (254, 1, 1)),     # red
     ],
 }
 
@@ -132,6 +157,10 @@ def label_masks(seg, sil, palette):
     quantized = seg.quantize(palette=pal, dither=Image.Dither.NONE)
     # read the raw palette numbers (0, 1, 2...) as a plain greyscale image
     index = Image.frombytes("L", quantized.size, quantized.tobytes())
+    # Each pixel takes the label most common around it: this smooths borders
+    # that follow the drawing's texture (a jagged line along scales) and drops
+    # texture lines the model painted in another part's colour
+    index = index.filter(ImageFilter.ModeFilter(7))
     masks = [main_regions(ImageChops.multiply(index.point(lambda v, i=i: 255 if v == i else 0), sil))
              for i in range(len(palette))]
     # grow labels outwards into unlabelled silhouette pixels, a few px per round
@@ -165,27 +194,64 @@ def split(source, map_path, palette):
     fg = ImageChops.darker(ImageChops.darker(r, g), b).point(lambda v: 255 if v < 200 else 0)
     for _ in range(4):
         fg = fg.filter(ImageFilter.MaxFilter(3))
-    sil = ImageChops.multiply(sil, fg.resize(FRAME, Image.NEAREST))
+    # ...but white INSIDE the creature (a thin seam the model left between two
+    # colours) isn't background: fill holes, or they show as a pale hairline
+    padded = Image.new("L", (HALF[0] + 2, HALF[1] + 2), 0)
+    padded.paste(fg, (1, 1))
+    ImageDraw.floodfill(padded, (0, 0), 64)
+    fg = padded.point(lambda v: 0 if v == 64 else 255).crop((1, 1, HALF[0] + 1, HALF[1] + 1))
+    sil =ImageChops.multiply(sil, fg.resize(FRAME, Image.NEAREST))
     return sil, label_masks(seg, sil.resize(HALF, Image.NEAREST), palette)
 
 
-def layer(i, source, sil, masks, fills=(), deep=False, skip=None):
+def round_edge(mask, zone):
+    """Round off a mask's edge inside zone (a cut line, not the drawing's own
+    outline, so nothing real is lost); the rest stays crisp."""
+    for _ in range(4):
+        zone = zone.filter(ImageFilter.MaxFilter(3))
+    smooth = mask.filter(ImageFilter.GaussianBlur(12)).point(lambda v: 255 if v > 127 else 0)
+    mask.paste(smooth, (0, 0), zone)
+
+
+def grow_up(mask, steps):
+    """Grow a mask upward only, one pixel per step."""
+    w, h = mask.size
+    for _ in range(steps):
+        shifted = Image.new("L", (w, h), 0)
+        shifted.paste(mask.crop((0, 1, w, h)), (0, 0))
+        mask = ImageChops.lighter(mask, shifted)
+    return mask
+
+
+def layer(i, source, sil, masks, fills=(), deep=False, skip=None, behind=None, leg=False):
     """Cut part number i out of the source drawing, as a cropped RGBA image
     plus its bounding box in the frame.
     fills: (covering parts' mask, edit image) pairs, to paint in what they hide.
     skip: parts in front it shouldn't reach under (a far leg under a near leg:
-    the near leg steps away, and the reach would show as a stray wedge)."""
+    the near leg steps away, and the reach would show as a stray wedge).
+    behind: legs tucked behind this part; its edge along them is a cut line
+    that stays on show, so it gets rounded off.
+    leg: legs reach straight UP into the body, not sideways. A piece beside
+    the leg's top, swinging with it around the hip, would poke out below the
+    belly."""
     # reach under everything drawn in front of this part
     front = Image.new("L", HALF, 0)
     for m in masks[i + 1:]:
         front = ImageChops.lighter(front, m)
     grown = masks[i]
     overlap = DEEP_OVERLAP if deep else OVERLAP
-    for _ in range(overlap // 2):   # many small steps are far faster than one big one
+    if leg:
+        grown = grow_up(grown, overlap // 2)
+    # (legs still grow a little sideways, to close gaps along a jagged top)
+    for _ in range(4 if leg else overlap // 2):   # many small steps are far faster than one big one
         grown = grown.filter(ImageFilter.MaxFilter(3))
-    reach = ImageChops.multiply(grown, front if skip is None else ImageChops.subtract(front, skip))
-    # round off the reach's blocky edge (growing in square steps leaves corners)
-    reach = reach.filter(ImageFilter.GaussianBlur(3)).point(lambda v: 255 if v > 127 else 0)
+    under = front if skip is None else ImageChops.subtract(front, skip)
+    reach = ImageChops.multiply(grown, under)
+    # round off the reach's blocky edge (growing in square steps leaves corners).
+    # Rounded together with the part, so it doesn't shrink away from it and
+    # leave pinholes along a jagged border.
+    reach = ImageChops.lighter(masks[i], reach).filter(ImageFilter.GaussianBlur(3)).point(lambda v: 255 if v > 127 else 0)
+    reach = ImageChops.multiply(reach, under)
     # keep only what's still attached to the part: reaching across a gap can
     # grab loose bits of a neighbour (e.g. a sliver of the other leg's outline)
     whole = main_regions(ImageChops.multiply(ImageChops.lighter(masks[i], reach), sil.resize(HALF)))
@@ -193,12 +259,10 @@ def layer(i, source, sil, masks, fills=(), deep=False, skip=None):
     mask = ImageChops.lighter(masks[i], reach)
     if skip is not None and skip.getbbox():
         # where the part was cut off by a skipped neighbour, round the cut edge
-        # (it shows once the neighbour steps away); the rest stays crisp
-        zone = skip
-        for _ in range(4):
-            zone = zone.filter(ImageFilter.MaxFilter(3))
-        smooth = mask.filter(ImageFilter.GaussianBlur(12)).point(lambda v: 255 if v > 127 else 0)
-        mask.paste(smooth, (0, 0), zone)
+        # (it shows once the neighbour steps away)
+        round_edge(mask, skip)
+    if behind is not None and behind.getbbox():
+        round_edge(mask, behind)
     mask = mask.resize(FRAME, Image.BILINEAR)
     alpha = mask.point(lambda v: 255 if v > 127 else 0).filter(ImageFilter.GaussianBlur(0.6))
     alpha = ImageChops.multiply(alpha, sil)
@@ -210,7 +274,9 @@ def layer(i, source, sil, masks, fills=(), deep=False, skip=None):
     # tucked-under area, and this part's last few pixels along the seam, are
     # painted in this part's own average colour near the seam instead.
     near_front = front
-    for _ in range(SEAM // 2):
+    # far legs get a wider band: where a near leg overlaps them, the map's
+    # border wobbles, and bits of the near leg land on the far one
+    for _ in range(SEAM * (3 if deep else 1) // 2):
         near_front = near_front.filter(ImageFilter.MaxFilter(3))
     hidden = ImageChops.lighter(reach, ImageChops.multiply(masks[i], near_front))
     sample = ImageChops.subtract(masks[i], near_front)        # own pixels just inside the seam
@@ -219,8 +285,25 @@ def layer(i, source, sil, masks, fills=(), deep=False, skip=None):
     sample = ImageChops.multiply(sample, near_front)
     if not sample.getbbox():
         sample = masks[i]
-    colour = tuple(round(v) for v in ImageStat.Stat(source.resize(HALF), sample).mean)
-    part.paste(colour + (255,), (0, 0), hidden.resize(FRAME, Image.BILINEAR))
+    small = source.resize(HALF)
+    colour = tuple(round(v) for v in ImageStat.Stat(small, sample).mean)
+    # One average colour is too dark under a pale throat and too pale under a
+    # dark back, so use the average of the NEARBY sample pixels instead (a
+    # blur of the sample, divided by a blur of where the sample is), and the
+    # overall average only where there are none nearby. Wide first, then
+    # narrower on top, so each pixel gets the closest colours available.
+    fill = Image.new("RGB", HALF, colour)
+    # leave ink lines and dark spots out: an ink line next to the seam (a chin)
+    # would otherwise darken the fill into a visible line
+    sample = ImageChops.multiply(sample, small.convert("L").point(lambda v: 255 if v > 90 else 0))
+    for radius in (24, 10, 4):
+        near = ImageChops.multiply(small, sample.convert("RGB")).filter(ImageFilter.BoxBlur(radius))
+        weight = sample.filter(ImageFilter.BoxBlur(radius))
+        local = Image.merge("RGB", [
+            ImageMath.lambda_eval(lambda a: a["convert"](a["float"](a["n"]) * 255 / (a["float"](a["w"]) + 0.001), "L"), n=band, w=weight)
+            for band in near.split()])
+        fill.paste(local, (0, 0), weight.point(lambda v: 255 if v > 12 else 0))
+    part.paste(fill.resize(FRAME, Image.BILINEAR), (0, 0), hidden.resize(FRAME, Image.BILINEAR))
     for cover, edit_path, own, front_e in fills:
         edit = Image.open(edit_path).convert("RGB").resize(FRAME, Image.LANCZOS)
         # the covering part's area, grown a little to tuck under its edge
@@ -288,7 +371,14 @@ def cut(creature, map_path, preview_dir=None, fills=None, variants=None):
         for j in range(i + 1, len(names)):
             if far and names[j].endswith("-leg"):
                 skip = ImageChops.lighter(skip, masks[j])
-        save(name, *layer(i, original, sil, masks, part_fills, deep=far, skip=skip))
+        # near legs drawn behind a body part (see the jaguar's palette)
+        behind = Image.new("L", HALF, 0)
+        if not name.endswith("-leg"):
+            for j in range(i):
+                if names[j].startswith("near-") and names[j].endswith("-leg"):
+                    behind = ImageChops.lighter(behind, masks[j])
+        save(name, *layer(i, original, sil, masks, part_fills, deep=far, skip=skip, behind=behind,
+                          leg=name.endswith("-leg")))
 
     for name, (part, edit_path, edit_map) in (variants or {}).items():
         edit = Image.open(edit_path).convert("RGB").resize(FRAME, Image.LANCZOS)

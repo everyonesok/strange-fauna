@@ -9,7 +9,11 @@ import * as THREE from 'three';
 import { toggleSound, playFootstep } from './audio.js';
 import { makeLeg, poseLeg } from './leg.js';
 
-const CREATURE = 'rabbit-bat-snake';
+// Every creature that has a folder in public/creatures/. The page address
+// picks one, e.g. ?creature=jaguar-elk-chameleon; the first is the default.
+const CREATURES = ['rabbit-bat-snake', 'jaguar-elk-chameleon', 'bear-rhino-beetle'];
+const asked = new URLSearchParams(location.search).get('creature');
+const CREATURE = CREATURES.includes(asked) ? asked : CREATURES[0];
 const FOLDER = `/creatures/${CREATURE}/`; // files in public/ are served from the site root
 
 // ----- Renderer ------------------------------------------------------------
@@ -183,8 +187,13 @@ function animateAlive(joint, time) {
 
   pose(joint.torso, { sy: 1 + ALIVE.chestSwell * breath, sx: 1 + ALIVE.chestSwell * 0.4 * breath });
   pose(joint.head, { dy: -ALIVE.rise * breath, rot: ALIVE.headTilt * later });
-  pose(joint.wing, { dy: -ALIVE.rise * breath, rot: -ALIVE.wingLift * later });
-  pose(joint.tail, { rot: ALIVE.tailSway * sway });
+  // Not every creature has a wing (or a tail), so skip the parts it lacks
+  if (joint.wing) pose(joint.wing, { dy: -ALIVE.rise * breath, rot: -ALIVE.wingLift * later });
+  if (joint.tail) pose(joint.tail, { rot: ALIVE.tailSway * sway });
+  // Any other part (the bear's beetle shell) just rides along with the body
+  for (const [name, part] of Object.entries(joint)) {
+    if (!part.userData.leg && !['torso', 'head', 'wing', 'tail'].includes(name)) pose(part);
+  }
 }
 
 // ----- Little moments (life clock) -----------------------------------------
@@ -200,7 +209,8 @@ const between = ([lo, hi]) => lo + Math.random() * (hi - lo);
 
 function animateMoments(joint, time) {
   for (const m of MOMENTS) {
-    if (!joint[m.part]) continue;
+    // skip moments this creature has no picture for (no wing, no folded wing)
+    if (!joint[m.part]?.getObjectByName(m.swap)) continue;
     m.start ??= time + between(m.every); // first time: pick when it happens
     if (time >= m.start && !m.end) {
       m.end = time + between(m.lasts);
@@ -341,6 +351,17 @@ function toggleWalk() {
   walkButton.setAttribute('aria-label', walking ? 'Pause walking' : 'Resume walking');
 }
 walkButton.addEventListener('click', toggleWalk);
+
+// Creature picker: choosing one reloads the page with it in the address
+const picker = document.getElementById('creature');
+for (const name of CREATURES) {
+  // "jaguar-elk-chameleon" -> "Jaguar elk chameleon"
+  const label = name.replaceAll('-', ' ').replace(/^./, (c) => c.toUpperCase());
+  picker.add(new Option(label, name, false, name === CREATURE));
+}
+picker.addEventListener('change', () => {
+  location.search = `?creature=${picker.value}`;
+});
 window.addEventListener('keydown', (e) => {
   // Skip when a button has focus: space already "clicks" a focused button,
   // so handling it here too would toggle twice.

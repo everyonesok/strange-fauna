@@ -16,3 +16,4 @@ these exist. New ones start from the [template](template.md).
 | [0008](0008-creatures-are-parts-plus-a-rig-file.md) | Creatures are cut-out parts plus a rig file | Accepted |
 | [0009](0009-cut-parts-from-the-original-with-an-ai-colour-map.md) | Cut parts from the original drawing, using an AI colour map | Accepted |
 | [0010](0010-lazy-walk-with-bending-legs.md) | A lazy walk for every creature, with legs that bend | Accepted |
+| [0011](0011-second-creature-legs-tucked-behind-the-body.md) | Second creature: one shared frame, legs tucked behind the body | Accepted |
