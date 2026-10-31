@@ -22,8 +22,14 @@ doesn't show them. For those, pass an AI edit of the original with the
 covering part removed; only the pixels it covered are taken from the edit:
     --fill=torso:wing:<original-without-wing.png>
 
+Swap-in versions of a part (a blink, a folded wing) are cut from an AI edit of
+the original. A blink keeps the head's outline, so it reuses the main map; a
+folded wing has a new outline, so it needs a colour map of the edit too:
+    --variant=head-blink:head:<blink-edit.png>
+    --variant=wing-folded:wing:<folded-edit.png>:<folded-edit-map.png>
+
 Usage (from the project root):
-    python3 tools/cut_from_map.py rabbit-bat-snake <map.png> [<preview-dir>] [--fill=...]
+    python3 tools/cut_from_map.py rabbit-bat-snake <map.png> [<preview-dir>] [--fill=...] [--variant=...]
 """
 import json
 import sys
@@ -35,6 +41,7 @@ from cut_parts import MAX_LUM, MIN_CHROMA  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 FRAME = (2368, 1776)  # 2x the original drawing, same as rig.json
+HALF = (FRAME[0] // 2, FRAME[1] // 2)
 OVERLAP = 25          # px a part reaches under the parts in front of it
 
 # Map colour for each part, listed back to front (the order they're drawn).
@@ -130,18 +137,12 @@ def label_masks(seg, sil, palette):
     return masks
 
 
-def cut(creature, map_path, preview_dir=None, fills=None):
-    """fills: {part: (covering part, edit image)}. The edit image is the
-    original with the covering part removed by AI; inside the area that part
-    covered, the hidden part takes the edit's pixels (e.g. the back under the wing)."""
-    palette = PARTS[creature]
-    names = [n for n, _ in palette]
-    original = Image.open(ROOT / "references" / f"{creature}.png").convert("RGB").resize(FRAME, Image.LANCZOS)
-    sil = silhouette(original)
+def split(source, map_path, palette):
+    """The source drawing's silhouette, and one mask per part (at half size)."""
+    sil = silhouette(source)
     # Sorting pixels into parts happens at half size (the drawing's own
     # resolution), which is 4x faster; the masks are scaled back up after.
-    half = (FRAME[0] // 2, FRAME[1] // 2)
-    seg = Image.open(map_path).convert("RGB").resize(half, Image.NEAREST)
+    seg = Image.open(map_path).convert("RGB").resize(HALF, Image.NEAREST)
     # Wherever the map is background (white), it's not creature, even if the
     # drawing is shaded there: this drops the ground shadow and the gaps
     # between the legs that the shadow encloses. Grown a few px so the
@@ -151,55 +152,92 @@ def cut(creature, map_path, preview_dir=None, fills=None):
     for _ in range(4):
         fg = fg.filter(ImageFilter.MaxFilter(3))
     sil = ImageChops.multiply(sil, fg.resize(FRAME, Image.NEAREST))
-    masks = label_masks(seg, sil.resize(half, Image.NEAREST), palette)
+    return sil, label_masks(seg, sil.resize(HALF, Image.NEAREST), palette)
+
+
+def layer(i, source, sil, masks, fill=None):
+    """Cut part number i out of the source drawing, as a cropped RGBA image
+    plus its bounding box in the frame.
+    fill: (covering part's mask, edit image) to paint in what that part hides."""
+    # reach under everything drawn in front of this part
+    front = Image.new("L", HALF, 0)
+    for m in masks[i + 1:]:
+        front = ImageChops.lighter(front, m)
+    grown = masks[i]
+    for _ in range(OVERLAP // 2):   # many small steps are far faster than one big one
+        grown = grown.filter(ImageFilter.MaxFilter(3))
+    reach = ImageChops.multiply(grown, front)
+    mask = ImageChops.lighter(masks[i], reach).resize(FRAME, Image.BILINEAR)
+    alpha = mask.point(lambda v: 255 if v > 127 else 0).filter(ImageFilter.GaussianBlur(0.6))
+    alpha = ImageChops.multiply(alpha, sil)
+    part = source.convert("RGBA")
+    if fill:
+        cover, edit_path = fill
+        edit = Image.open(edit_path).convert("RGB").resize(FRAME, Image.LANCZOS)
+        # the covering part's area, grown a little to tuck under its edge
+        area = cover
+        for _ in range(3):
+            area = area.filter(ImageFilter.MaxFilter(3))
+        area = area.resize(FRAME, Image.BILINEAR).point(lambda v: 255 if v > 127 else 0)
+        # inside that area: the edit's pixels, wherever the edit shows creature
+        alpha.paste(ImageChops.multiply(silhouette(edit), area).filter(ImageFilter.GaussianBlur(0.6)), (0, 0), area)
+        part.paste(edit, (0, 0), area.filter(ImageFilter.GaussianBlur(4)))  # soft seam
+    part.putalpha(alpha)
+    bbox = alpha.getbbox()
+    return part.crop(bbox), bbox
+
+
+def cut(creature, map_path, preview_dir=None, fills=None, variants=None):
+    """fills: {part: (covering part, edit image)}. The edit image is the
+    original with the covering part removed by AI; inside the area that part
+    covered, the hidden part takes the edit's pixels (e.g. the back under the wing).
+    variants: {name: (part, edit image, edit's map or None)}. A swap-in version
+    of a part (a blink, a folded wing) cut from an AI edit of the original. With
+    no map of its own, the part keeps its original outline (fine for a blink)."""
+    palette = PARTS[creature]
+    names = [n for n, _ in palette]
+    original = Image.open(ROOT / "references" / f"{creature}.png").convert("RGB").resize(FRAME, Image.LANCZOS)
+    sil, masks = split(original, map_path, palette)
 
     dest = ROOT / "public" / "creatures" / creature
     origins = {}
-    for i, (name, _) in enumerate(palette):
-        # reach under everything drawn in front of this part
-        front = Image.new("L", half, 0)
-        for m in masks[i + 1:]:
-            front = ImageChops.lighter(front, m)
-        grown = masks[i]
-        for _ in range(OVERLAP // 2):   # many small steps are far faster than one big one
-            grown = grown.filter(ImageFilter.MaxFilter(3))
-        reach = ImageChops.multiply(grown, front)
-        mask = ImageChops.lighter(masks[i], reach).resize(FRAME, Image.BILINEAR)
-        alpha = mask.point(lambda v: 255 if v > 127 else 0).filter(ImageFilter.GaussianBlur(0.6))
-        alpha = ImageChops.multiply(alpha, sil)
-        part = original.convert("RGBA")
-        if fills and name in fills:
-            cover, edit_path = fills[name]
-            edit = Image.open(edit_path).convert("RGB").resize(FRAME, Image.LANCZOS)
-            # the covering part's area, grown a little to tuck under its edge
-            area = masks[names.index(cover)]
-            for _ in range(3):
-                area = area.filter(ImageFilter.MaxFilter(3))
-            area = area.resize(FRAME, Image.BILINEAR).point(lambda v: 255 if v > 127 else 0)
-            # inside that area: the edit's pixels, wherever the edit shows creature
-            alpha.paste(ImageChops.multiply(silhouette(edit), area).filter(ImageFilter.GaussianBlur(0.6)), (0, 0), area)
-            part.paste(edit, (0, 0), area.filter(ImageFilter.GaussianBlur(4)))  # soft seam
-        part.putalpha(alpha)
-        bbox = alpha.getbbox()
-        part.crop(bbox).save(dest / f"{name}.png", optimize=True)
+
+    def save(name, img, bbox):
+        img.save(dest / f"{name}.png", optimize=True)
         origins[name] = {"origin": bbox[:2], "size": (bbox[2] - bbox[0], bbox[3] - bbox[1])}
         print(f"{name:15} at {bbox[:2]}  size {origins[name]['size']}")
 
+    for i, name in enumerate(names):
+        fill = None
+        if fills and name in fills:
+            cover, edit_path = fills[name]
+            fill = (masks[names.index(cover)], edit_path)
+        save(name, *layer(i, original, sil, masks, fill))
+
+    for name, (part, edit_path, edit_map) in (variants or {}).items():
+        edit = Image.open(edit_path).convert("RGB").resize(FRAME, Image.LANCZOS)
+        v_sil, v_masks = split(edit, edit_map, palette) if edit_map else (sil, masks)
+        save(name, *layer(names.index(part), edit, v_sil, v_masks))
+
     if preview_dir:
         # every pixel tinted by its label, to eyeball the split
-        tint = Image.new("RGB", half, "white")
+        tint = Image.new("RGB", HALF, "white")
         for (_, colour), m in zip(palette, masks):
             tint.paste(colour, (0, 0), m)
-        Image.blend(original.resize(half), tint, 0.45).save(Path(preview_dir) / f"{creature}-labels.png")
+        Image.blend(original.resize(HALF), tint, 0.45).save(Path(preview_dir) / f"{creature}-labels.png")
     (dest / "cut-origins.json").write_text(json.dumps(origins, indent=2))
 
 
 if __name__ == "__main__":
-    # --fill=part:covering-part:edit.png  (repeatable)
-    fills = {}
+    # --fill=part:covering-part:edit.png        (repeatable)
+    # --variant=name:part:edit.png[:edit-map.png] (repeatable)
+    fills, variants = {}, {}
     for a in sys.argv:
         if a.startswith("--fill="):
             part, cover, path = a[len("--fill="):].split(":", 2)
             fills[part] = (cover, path)
+        if a.startswith("--variant="):
+            name, part, path, *edit_map = a[len("--variant="):].split(":")
+            variants[name] = (part, path, edit_map[0] if edit_map else None)
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    cut(args[0], args[1], args[2] if len(args) > 2 else None, fills)
+    cut(args[0], args[1], args[2] if len(args) > 2 else None, fills, variants)

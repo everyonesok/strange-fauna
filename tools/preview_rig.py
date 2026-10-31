@@ -6,7 +6,7 @@ Saves <out>/<creature>-rig.png with two panels:
   right: the assembly over a faded copy of the original drawing (to compare)
 
 Usage (from the project root):
-    python3 tools/preview_rig.py rabbit-bat-snake <out-dir>
+    python3 tools/preview_rig.py rabbit-bat-snake <out-dir> [alternates to swap in, e.g. head-blink]
 """
 import json
 import math
@@ -43,19 +43,24 @@ def place(part, folder, frame):
     return img.transform(frame, Image.AFFINE, data, resample=Image.BICUBIC)
 
 
-def render(creature):
+def render(creature, swaps=()):
+    """swaps: names from the rig's "alternates" (e.g. head-blink) to draw in
+    place of their part, using the alternate's own image and pivot."""
     folder = ROOT / "public" / "creatures" / creature
     rig = json.loads((folder / "rig.json").read_text())
     frame = tuple(rig["frame"])
+    alts = {rig["alternates"][s]["part"]: rig["alternates"][s] for s in swaps}
     out = Image.new("RGBA", frame, (0, 0, 0, 0))
     for part in rig["parts"]:
+        if part["name"] in alts:
+            part = {**part, **{k: v for k, v in alts[part["name"]].items() if k != "part"}}
         out = Image.alpha_composite(out, place(part, folder, frame))
     return out, frame
 
 
 if __name__ == "__main__":
     creature, out_dir = sys.argv[1], Path(sys.argv[2])
-    assembled, frame = render(creature)
+    assembled, frame = render(creature, sys.argv[3:])
     original = Image.open(ROOT / "references" / f"{creature}.png").convert("RGBA").resize(frame)
     faded = Image.blend(Image.new("RGBA", frame, "white"), original, 0.35)
     panel = Image.new("RGBA", (frame[0] * 2, frame[1]), "white")

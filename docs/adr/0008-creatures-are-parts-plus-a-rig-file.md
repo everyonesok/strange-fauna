@@ -21,7 +21,8 @@ Each creature is a folder in `public/creatures/<name>/` holding:
   hip at the top of a leg), `at` (where that joint sits on the creature),
   `scale`, `rotate` and optional `flipX` and `shade`. Coordinates are pixels in
   a frame twice the size of the original concept drawing, with the ground at a
-  fixed height. `alternates` lists swap-in images (blinking head, folded wing).
+  fixed height. `alternates` lists swap-in images (blinking head, folded wing),
+  each naming the part it replaces and its own pivot.
 
 Far-side limbs are listed as their own parts that reuse the near-side images
 with a `shade` below 1.

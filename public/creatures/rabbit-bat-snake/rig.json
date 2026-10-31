@@ -5,7 +5,7 @@
     1776
   ],
   "ground": 1590,
-  "notes": "Rest pose, cut straight from the original drawing (tools/cut_from_map.py), so every part sits at scale 1 exactly where it was cut. Parts are listed back to front. pivot = joint point on the part image (px); at = where that joint sits in the frame (px, 2x the original drawing); rotate = degrees, clockwise; shade = darken (1 = none).",
+  "notes": "Rest pose, cut straight from the original drawing (tools/cut_from_map.py), so every part sits at scale 1 exactly where it was cut. Parts are listed back to front. pivot = joint point on the part image (px); at = where that joint sits in the frame (px, 2x the original drawing); rotate = degrees, clockwise; shade = darken (1 = none). alternates = swap-in images for a part (blink, folded wing), cut from AI edits of the same drawing, each with its own pivot.",
   "parts": [
     {
       "name": "far-hind-leg",
@@ -121,7 +121,21 @@
     }
   ],
   "alternates": {
-    "head": "head-blink.png",
-    "wing": "wing-folded.png"
+    "head-blink": {
+      "part": "head",
+      "image": "head-blink.png",
+      "pivot": [
+        140,
+        711
+      ]
+    },
+    "wing-folded": {
+      "part": "wing",
+      "image": "wing-folded.png",
+      "pivot": [
+        845,
+        383
+      ]
+    }
   }
 }

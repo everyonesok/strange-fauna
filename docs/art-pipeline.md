@@ -61,8 +61,39 @@ python3 tools/onion_skin.py rabbit-bat-snake <out.png>
   check the split.
 - Set each part's pivot (joint) in `rig.json`; `at` is the same joint in the
   frame, and scale is always 1.
-- Still to do: the blinking head and folded wing as edits of the new cut-out
-  head and wing, so they match.
+**4. Swap-in images** (a blink, a folded wing): more Nano Banana 2 edits of the
+original, in the same framing, cut with `--variant`.
+
+```text
+Close the rabbit's eye in a gentle blink: the eyelid fully closed, drawn as a
+soft curved ink line with the surrounding fur colours, no eyeball visible. Keep
+everything else exactly the same: same framing, pose, size and position of every
+part, so the result lines up pixel-for-pixel with the original.
+```
+
+```text
+Fold the bat wing closed, like a resting bat's wing: the same wing with the same
+colours and ink style, still attached at the same shoulder point, with its arm
+bones folded and the membrane tucked in so it lies close along the rabbit's
+back, pointing back toward the tail. Where the open wing used to be, show the
+rabbit's grey back fur and the plain white background. Keep everything else
+exactly the same: same framing, pose, size and position of the rabbit, head,
+tail and legs, so they line up pixel-for-pixel with the original.
+```
+
+The blink keeps the head's outline, so it reuses the main colour map. The
+folded wing has a new outline, so it also needs a colour map of the folded
+edit (step 1's prompt, run on that edit, with "folded bat wing"). Add to the
+cut command:
+
+```bash
+--variant=head-blink:head:references/separations/rabbit-bat-snake-blink-nb2.jpg
+--variant=wing-folded:wing:references/separations/rabbit-bat-snake-wingfolded-nb2.jpg:references/separations/rabbit-bat-snake-wingfolded-segmap-nb2.jpg
+```
+
+Each swap-in goes in the rig's `alternates` with its own pivot (the same joint
+as its part). Preview one with
+`python3 tools/preview_rig.py <creature> <out-dir> head-blink wing-folded`.
 
 ## Earlier experiment: Krea-drawn parts
 

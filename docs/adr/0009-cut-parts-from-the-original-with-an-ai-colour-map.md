@@ -42,8 +42,8 @@ was cut. The rest pose *is* the drawing.
   tail starts curled. The walk animates from there.
 - Parts are only as sharp as the original drawing (1184 px wide, used at 2x).
   Upscaling the original first with an enhancer is an option if they look soft.
-- Swap-in images (the blinking head and folded wing) must now be made from the
-  new cut-out parts. The old Krea-drawn ones no longer match.
+- Swap-in images (the blinking head and folded wing) are cut the same way,
+  from AI edits of the original (`--variant`), so they swap in without a jump.
 - The colour map's palette is listed per creature in `tools/cut_from_map.py`,
   using the colours the model actually painted.
 
