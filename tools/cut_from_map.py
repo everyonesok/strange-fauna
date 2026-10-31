@@ -51,6 +51,9 @@ OVERLAP = 25          # px a part reaches under the parts in front of it
 # Far-side legs swing their whole thigh behind the body, so they reach deeper
 DEEP_OVERLAP = 60
 SEAM = 6              # px of a part's own edge, along the parts in front, repainted too
+# How wide a notch a near leg can cut into the body and still get filled in
+# under it (half-size px, so about 4x this across in the frame)
+HULL = 50
 # A pixel counts as drawing if it's darker than MAX_LUM or more colourful
 # than MIN_CHROMA. A ground shadow is light and nearly grey (brightness
 # 200-230, colourfulness under 9), so these leave it out; everything inside
@@ -223,7 +226,8 @@ def grow_up(mask, steps):
     return mask
 
 
-def layer(i, source, sil, masks, fills=(), deep=False, skip=None, behind=None, leg=False):
+def layer(i, source, sil, masks, fills=(), deep=False, skip=None, behind=None, leg=False,
+          covered=None):
     """Cut part number i out of the source drawing, as a cropped RGBA image
     plus its bounding box in the frame.
     fills: (covering parts' mask, edit image) pairs, to paint in what they hide.
@@ -233,7 +237,9 @@ def layer(i, source, sil, masks, fills=(), deep=False, skip=None, behind=None, l
     that stays on show, so it gets rounded off.
     leg: legs reach straight UP into the body, not sideways. A piece beside
     the leg's top, swinging with it around the hip, would poke out below the
-    belly."""
+    belly.
+    covered: near legs drawn in front of this part; the body is filled in
+    under them (see HULL)."""
     # reach under everything drawn in front of this part
     front = Image.new("L", HALF, 0)
     for m in masks[i + 1:]:
@@ -252,6 +258,18 @@ def layer(i, source, sil, masks, fills=(), deep=False, skip=None, behind=None, l
     # leave pinholes along a jagged border.
     reach = ImageChops.lighter(masks[i], reach).filter(ImageFilter.GaussianBlur(3)).point(lambda v: 255 if v > 127 else 0)
     reach = ImageChops.multiply(reach, under)
+    if covered is not None and covered.getbbox():
+        # Under near legs in front, fill the body in out to where its outline
+        # would run without the leg: grow the part, then shrink it back by the
+        # same amount ("closing"). Notches the legs cut into the body fill in;
+        # its outer edge stays where it was. When a leg swings away, its big
+        # shoulder no longer leaves an empty hole in the chest.
+        closed = ImageChops.lighter(masks[i], reach)
+        for _ in range(HULL):
+            closed = closed.filter(ImageFilter.MaxFilter(3))
+        for _ in range(HULL):
+            closed = closed.filter(ImageFilter.MinFilter(3))
+        reach = ImageChops.lighter(reach, ImageChops.multiply(closed, covered))
     # keep only what's still attached to the part: reaching across a gap can
     # grab loose bits of a neighbour (e.g. a sliver of the other leg's outline)
     whole = main_regions(ImageChops.multiply(ImageChops.lighter(masks[i], reach), sil.resize(HALF)))
@@ -377,8 +395,14 @@ def cut(creature, map_path, preview_dir=None, fills=None, variants=None):
             for j in range(i):
                 if names[j].startswith("near-") and names[j].endswith("-leg"):
                     behind = ImageChops.lighter(behind, masks[j])
+        # near legs drawn in front of a body part
+        covered = Image.new("L", HALF, 0)
+        if not name.endswith("-leg"):
+            for j in range(i + 1, len(names)):
+                if names[j].startswith("near-") and names[j].endswith("-leg"):
+                    covered = ImageChops.lighter(covered, masks[j])
         save(name, *layer(i, original, sil, masks, part_fills, deep=far, skip=skip, behind=behind,
-                          leg=name.endswith("-leg")))
+                          leg=name.endswith("-leg"), covered=covered))
 
     for name, (part, edit_path, edit_map) in (variants or {}).items():
         edit = Image.open(edit_path).convert("RGB").resize(FRAME, Image.LANCZOS)

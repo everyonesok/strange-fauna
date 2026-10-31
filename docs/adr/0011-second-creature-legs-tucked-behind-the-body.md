@@ -77,6 +77,15 @@ were needed after the concept: the colour map and a blink.
   part.** One average colour for the whole torso (tan with dark spots) showed
   as a dark line under the cream throat. Nearby colours, leaving out ink lines
   and spots, made it disappear.
+- **A big shoulder in front of the body leaves a hole when it swings.** The
+  bear's near front leg covered a deep notch of its chest, and the body had
+  nothing there. The cutter now fills the body in under near legs in front of
+  it, out to where its outline would run without the leg (a "closing": grow
+  the shape, then shrink it back by the same amount).
+- **A leg that should look straight needs its foot planted far ahead.** The
+  jaguar's near front leg folded into a sharp arc because its foot landed
+  close under the hip. Moving its `reach` forward (and a shorter stride) keeps
+  it extended, as in the drawing.
 - AI edits come back slightly larger than the drawing (2400 × 1792 for a
   1024 × 768 drawing, a 0.5% different shape). Scaled into the frame, they
   still lined up.

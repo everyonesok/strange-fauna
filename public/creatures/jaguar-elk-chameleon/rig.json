@@ -8,7 +8,7 @@
   "gait": {
     "cycle": 1.9,
     "duty": 0.65,
-    "stride": 230,
+    "stride": 210,
     "lift": 50,
     "peel": 18,
     "bob": 4,
@@ -22,7 +22,7 @@
     "reach": {
       "near-hind-leg": 0,
       "far-hind-leg": 60,
-      "near-front-leg": 180,
+      "near-front-leg": 360,
       "far-front-leg": 60
     }
   },
