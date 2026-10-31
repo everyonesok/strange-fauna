@@ -3,17 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Strange Fauna — spike</title>
+    <title>Strange Fauna</title>
     <style>
-      html, body { margin: 0; height: 100%; overflow: hidden; background: #1a0f24; }
-      canvas { display: block; cursor: grab; touch-action: none; }
-      canvas:active { cursor: grabbing; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #efeaf2; }
+      canvas { display: block; }
 
       /* Little title, top-left */
       .title {
         position: fixed; top: 20px; left: 24px;
         font: 600 14px/1 system-ui, sans-serif; letter-spacing: 0.3em;
-        color: #fbe3d4; opacity: 0.8;
+        color: #3a2a48; opacity: 0.8;
       }
       .hint { display: block; margin-top: 8px; font-weight: 400; letter-spacing: 0.05em; opacity: 0.6; }
 
@@ -34,13 +33,11 @@
     </style>
   </head>
   <body>
-    <div class="title">STRANGE FAUNA <span class="hint">drag to rotate · space to pause</span></div>
+    <div class="title">STRANGE FAUNA <span class="hint">space to pause</span></div>
 
     <div class="controls">
-      <!-- Stops the walk; the creature stays alive and can still be rotated. Spacebar works too. -->
+      <!-- Stops the walk; the creature stays alive. Spacebar works too. -->
       <button id="walk" type="button" aria-label="Pause walking">⏸ Pause</button>
-      <label for="tail">Tail</label>
-      <input id="tail" type="range" min="0" max="1" step="0.001" value="0" />
       <!-- Browsers block sound until the user clicks something, so sound starts off -->
       <button id="sound" type="button">🔇 Sound off</button>
     </div>

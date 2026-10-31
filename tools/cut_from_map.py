@@ -21,6 +21,12 @@ Hidden areas (the back under the wing) can't be cut, because the drawing
 doesn't show them. For those, pass an AI edit of the original with the
 covering part removed; only the pixels it covered are taken from the edit:
     --fill=torso:wing:<original-without-wing.png>
+Several fills can go into one part, and one edit can remove several parts:
+    --fill=torso:near-front-leg+near-hind-leg:<original-without-near-legs.png>
+Removing a near leg uncovers the far leg behind it, which the fill would wrongly
+glue onto the body. Add a colour map of the edit, and only the part's own
+pixels in it are taken:
+    --fill=torso:near-hind-leg:<edit.png>:<edit-map.png>
 
 Swap-in versions of a part (a blink, a folded wing) are cut from an AI edit of
 the original. A blink keeps the head's outline, so it reuses the main map; a
@@ -34,15 +40,23 @@ Usage (from the project root):
 import json
 import sys
 from pathlib import Path
-from PIL import Image, ImageChops, ImageDraw, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageStat
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from cut_parts import MAX_LUM, MIN_CHROMA  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 FRAME = (2368, 1776)  # 2x the original drawing, same as rig.json
 HALF = (FRAME[0] // 2, FRAME[1] // 2)
 OVERLAP = 25          # px a part reaches under the parts in front of it
+# Far-side legs swing their whole thigh behind the body, so they reach deeper
+DEEP_OVERLAP = 60
+SEAM = 6              # px of a part's own edge, along the parts in front, repainted too
+# A pixel counts as drawing if it's darker than MAX_LUM or more colourful
+# than MIN_CHROMA. A ground shadow is light and nearly grey (brightness
+# 200-230, colourfulness under 9), so these leave it out; everything inside
+# the ink outline is kept anyway (holes get filled).
+MAX_LUM = 195
+MIN_CHROMA = 12
 
 # Map colour for each part, listed back to front (the order they're drawn).
 # These are the colours the model actually painted (sampled from the map),
@@ -64,8 +78,8 @@ PARTS = {
 def silhouette(original):
     """The creature's pixels: the connected 'drawing' blob, holes filled.
     The pale ground shadow is too light to count as drawing."""
-    # Same test as cut_parts.is_drawing, done on whole images at once (fast):
-    # darker than MAX_LUM, or more colourful than MIN_CHROMA
+    # Darker than MAX_LUM, or more colourful than MIN_CHROMA, tested on whole
+    # images at once (fast)
     w, h = original.size
     r, g, b = original.split()
     dark = original.convert("L").point(lambda v: 255 if v < MAX_LUM else 0)
@@ -155,42 +169,87 @@ def split(source, map_path, palette):
     return sil, label_masks(seg, sil.resize(HALF, Image.NEAREST), palette)
 
 
-def layer(i, source, sil, masks, fill=None):
+def layer(i, source, sil, masks, fills=(), deep=False, skip=None):
     """Cut part number i out of the source drawing, as a cropped RGBA image
     plus its bounding box in the frame.
-    fill: (covering part's mask, edit image) to paint in what that part hides."""
+    fills: (covering parts' mask, edit image) pairs, to paint in what they hide.
+    skip: parts in front it shouldn't reach under (a far leg under a near leg:
+    the near leg steps away, and the reach would show as a stray wedge)."""
     # reach under everything drawn in front of this part
     front = Image.new("L", HALF, 0)
     for m in masks[i + 1:]:
         front = ImageChops.lighter(front, m)
     grown = masks[i]
-    for _ in range(OVERLAP // 2):   # many small steps are far faster than one big one
+    overlap = DEEP_OVERLAP if deep else OVERLAP
+    for _ in range(overlap // 2):   # many small steps are far faster than one big one
         grown = grown.filter(ImageFilter.MaxFilter(3))
-    reach = ImageChops.multiply(grown, front)
-    mask = ImageChops.lighter(masks[i], reach).resize(FRAME, Image.BILINEAR)
+    reach = ImageChops.multiply(grown, front if skip is None else ImageChops.subtract(front, skip))
+    # round off the reach's blocky edge (growing in square steps leaves corners)
+    reach = reach.filter(ImageFilter.GaussianBlur(3)).point(lambda v: 255 if v > 127 else 0)
+    # keep only what's still attached to the part: reaching across a gap can
+    # grab loose bits of a neighbour (e.g. a sliver of the other leg's outline)
+    whole = main_regions(ImageChops.multiply(ImageChops.lighter(masks[i], reach), sil.resize(HALF)))
+    reach = ImageChops.multiply(reach, whole)
+    mask = ImageChops.lighter(masks[i], reach)
+    if skip is not None and skip.getbbox():
+        # where the part was cut off by a skipped neighbour, round the cut edge
+        # (it shows once the neighbour steps away); the rest stays crisp
+        zone = skip
+        for _ in range(4):
+            zone = zone.filter(ImageFilter.MaxFilter(3))
+        smooth = mask.filter(ImageFilter.GaussianBlur(12)).point(lambda v: 255 if v > 127 else 0)
+        mask.paste(smooth, (0, 0), zone)
+    mask = mask.resize(FRAME, Image.BILINEAR)
     alpha = mask.point(lambda v: 255 if v > 127 else 0).filter(ImageFilter.GaussianBlur(0.6))
     alpha = ImageChops.multiply(alpha, sil)
     part = source.convert("RGBA")
-    if fill:
-        cover, edit_path = fill
+
+    # The drawing has nothing of this part under the parts in front, only
+    # THEIR pixels (and the ink outline between them). If those stayed on
+    # this part, they'd swing with it as a visible seam when it moves. So the
+    # tucked-under area, and this part's last few pixels along the seam, are
+    # painted in this part's own average colour near the seam instead.
+    near_front = front
+    for _ in range(SEAM // 2):
+        near_front = near_front.filter(ImageFilter.MaxFilter(3))
+    hidden = ImageChops.lighter(reach, ImageChops.multiply(masks[i], near_front))
+    sample = ImageChops.subtract(masks[i], near_front)        # own pixels just inside the seam
+    for _ in range(4):
+        near_front = near_front.filter(ImageFilter.MaxFilter(3))
+    sample = ImageChops.multiply(sample, near_front)
+    if not sample.getbbox():
+        sample = masks[i]
+    colour = tuple(round(v) for v in ImageStat.Stat(source.resize(HALF), sample).mean)
+    part.paste(colour + (255,), (0, 0), hidden.resize(FRAME, Image.BILINEAR))
+    for cover, edit_path, own, front_e in fills:
         edit = Image.open(edit_path).convert("RGB").resize(FRAME, Image.LANCZOS)
         # the covering part's area, grown a little to tuck under its edge
         area = cover
         for _ in range(3):
             area = area.filter(ImageFilter.MaxFilter(3))
         area = area.resize(FRAME, Image.BILINEAR).point(lambda v: 255 if v > 127 else 0)
-        # inside that area: the edit's pixels, wherever the edit shows creature
-        alpha.paste(ImageChops.multiply(silhouette(edit), area).filter(ImageFilter.GaussianBlur(0.6)), (0, 0), area)
-        part.paste(edit, (0, 0), area.filter(ImageFilter.GaussianBlur(4)))  # soft seam
+        # inside that area: the edit's pixels, wherever the edit shows creature.
+        # With a map of the edit (own = this part's pixels in it), only this
+        # part's: removing a near leg uncovers the far one, which isn't body.
+        if own is None:
+            alpha.paste(ImageChops.multiply(silhouette(edit), area).filter(ImageFilter.GaussianBlur(0.6)), (0, 0), area)
+            part.paste(edit, (0, 0), area.filter(ImageFilter.GaussianBlur(4)))  # soft seam
+            continue
+        # ...and the part still tucks under whatever the edit draws in front of
+        # it (front_e), but no longer under the removed part, which isn't there
+        tucked = ImageChops.multiply(alpha, front_e)
+        alpha.paste(ImageChops.lighter(own, tucked).filter(ImageFilter.GaussianBlur(0.6)), (0, 0), area)
+        part.paste(edit, (0, 0), ImageChops.multiply(own, area).filter(ImageFilter.GaussianBlur(4)))
     part.putalpha(alpha)
     bbox = alpha.getbbox()
     return part.crop(bbox), bbox
 
 
 def cut(creature, map_path, preview_dir=None, fills=None, variants=None):
-    """fills: {part: (covering part, edit image)}. The edit image is the
-    original with the covering part removed by AI; inside the area that part
-    covered, the hidden part takes the edit's pixels (e.g. the back under the wing).
+    """fills: {part: [(covering parts, edit image), ...]}. The edit image is
+    the original with the covering parts removed by AI; inside the area they
+    covered, the hidden part takes the edit's pixels (e.g. the back under the
+    wing). Covering parts are joined with "+", e.g. "near-front-leg+near-hind-leg".
     variants: {name: (part, edit image, edit's map or None)}. A swap-in version
     of a part (a blink, a folded wing) cut from an AI edit of the original. With
     no map of its own, the part keeps its original outline (fine for a blink)."""
@@ -208,16 +267,33 @@ def cut(creature, map_path, preview_dir=None, fills=None, variants=None):
         print(f"{name:15} at {bbox[:2]}  size {origins[name]['size']}")
 
     for i, name in enumerate(names):
-        fill = None
-        if fills and name in fills:
-            cover, edit_path = fills[name]
-            fill = (masks[names.index(cover)], edit_path)
-        save(name, *layer(i, original, sil, masks, fill))
+        part_fills = []
+        for covers, edit_path, edit_map in (fills or {}).get(name, []):
+            area = Image.new("L", HALF, 0)
+            for cover in covers.split("+"):
+                area = ImageChops.lighter(area, masks[names.index(cover)])
+            own = front_e = None
+            if edit_map:
+                edit = Image.open(edit_path).convert("RGB").resize(FRAME, Image.LANCZOS)
+                e_sil, e_masks = split(edit, edit_map, palette)
+                own = ImageChops.multiply(e_masks[i].resize(FRAME, Image.BILINEAR), e_sil)
+                front_e = Image.new("L", HALF, 0)
+                for m in e_masks[i + 1:]:
+                    front_e = ImageChops.lighter(front_e, m)
+                front_e = front_e.resize(FRAME, Image.BILINEAR)
+            part_fills.append((area, edit_path, own, front_e))
+        # far legs tuck deep under the body, but not under the legs in front
+        far = name.startswith("far-")
+        skip = Image.new("L", HALF, 0)
+        for j in range(i + 1, len(names)):
+            if far and names[j].endswith("-leg"):
+                skip = ImageChops.lighter(skip, masks[j])
+        save(name, *layer(i, original, sil, masks, part_fills, deep=far, skip=skip))
 
     for name, (part, edit_path, edit_map) in (variants or {}).items():
         edit = Image.open(edit_path).convert("RGB").resize(FRAME, Image.LANCZOS)
         v_sil, v_masks = split(edit, edit_map, palette) if edit_map else (sil, masks)
-        save(name, *layer(names.index(part), edit, v_sil, v_masks))
+        save(name, *layer(names.index(part), edit, v_sil, v_masks, deep=part.startswith("far-")))
 
     if preview_dir:
         # every pixel tinted by its label, to eyeball the split
@@ -229,13 +305,13 @@ def cut(creature, map_path, preview_dir=None, fills=None, variants=None):
 
 
 if __name__ == "__main__":
-    # --fill=part:covering-part:edit.png        (repeatable)
-    # --variant=name:part:edit.png[:edit-map.png] (repeatable)
+    # --fill=part:covering-part:edit.png[:edit-map.png] (repeatable)
+    # --variant=name:part:edit.png[:edit-map.png]       (repeatable)
     fills, variants = {}, {}
     for a in sys.argv:
         if a.startswith("--fill="):
-            part, cover, path = a[len("--fill="):].split(":", 2)
-            fills[part] = (cover, path)
+            part, cover, path, *edit_map = a[len("--fill="):].split(":")
+            fills.setdefault(part, []).append((cover, path, edit_map[0] if edit_map else None))
         if a.startswith("--variant="):
             name, part, path, *edit_map = a[len("--variant="):].split(":")
             variants[name] = (part, path, edit_map[0] if edit_map else None)

@@ -48,6 +48,19 @@ exactly the same: same framing, pose, size and position of every part, so the
 result lines up pixel-for-pixel with the original.
 ```
 
+Do the same for each near leg, one leg per edit. Ask for the leg's whole thigh to
+go and for a **slim** body underside in its place. Asking for "a rounded rump and
+haunch" left a thigh painted on the body, and it stood still while the real
+thigh swung, like an udder. Removing a near leg also uncovers the far leg behind
+it, so make a colour map of the edit too (same prompt as step 1, with that leg
+left out) and pass it after the edit. Then the body only takes body pixels, and
+the far leg takes its own uncovered top from the same edit:
+
+```text
+--fill=torso:near-hind-leg:<no-near-hind.jpg>:<no-near-hind-map.jpg>
+--fill=far-hind-leg:near-hind-leg:<no-near-hind.jpg>:<no-near-hind-map.jpg>
+```
+
 **3. Cut and check**
 
 ```bash

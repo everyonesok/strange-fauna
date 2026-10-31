@@ -1,54 +1,257 @@
 // ---------------------------------------------------------------------------
-// main.js — the "puppeteer".
-// Every frame (~60x per second) we:
-//   1. work out where the body, legs and tail should be
-//   2. send those numbers ("uniforms") to the shader, which draws them
+// main.js — draws a cut-out creature from its rig.json, like a paper puppet.
+//
+// Each body part is a flat picture (a "sprite") pinned at its joint. A joint
+// is a THREE.Group: moving or rotating the group moves the picture with it,
+// around the pivot point. This step only shows the rest pose; later steps
+// rotate the joints to walk.
 // ---------------------------------------------------------------------------
 import * as THREE from 'three';
-import fragmentShader from './creature.glsl?raw'; // ?raw = load the file as plain text
 import { toggleSound, playFootstep } from './audio.js';
+import { makeLeg, poseLeg } from './leg.js';
 
-const { Vector3, Vector4 } = THREE;
+const CREATURE = 'rabbit-bat-snake';
+const FOLDER = `/creatures/${CREATURE}/`; // files in public/ are served from the site root
 
-// ----- Renderer: one full-screen rectangle the shader paints onto ----------
-const renderer = new THREE.WebGLRenderer({ antialias: false });
-// Raymarching is heavy on the graphics card, so cap the resolution a bit
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+// ----- Renderer ------------------------------------------------------------
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setClearColor(0xefeaf2); // soft paper colour until the landscape arrives
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-const camera = new THREE.Camera(); // placeholder — the shader has its own camera
 
-const TAIL_POINTS = 10;
-const uniforms = {
-  uResolution: { value: new THREE.Vector2() },
-  uTime: { value: 0 },
-  uScroll: { value: 0 },
-  uCamAngle: { value: 0 },
-  uBody: { value: new Vector3() },
-  uHead: { value: new Vector3() },
-  uLegs: { value: Array.from({ length: 6 }, () => new Vector3()) },
-  uTail: { value: Array.from({ length: TAIL_POINTS }, () => new Vector4()) },
-  uTailAmount: { value: 0 },
-};
+// An orthographic camera has no perspective: perfect for flat 2D art.
+// We measure the world in the rig's own pixels, so a part placed "at
+// [1850, 830]" in rig.json lands at x 1850 here. One difference: the rig
+// counts y downward (like an image), Three.js counts y upward, so we flip y.
+const camera = new THREE.OrthographicCamera();
+camera.position.z = 10;
 
-const screenQuad = new THREE.Mesh(
-  new THREE.PlaneGeometry(2, 2),
-  new THREE.ShaderMaterial({
-    uniforms,
-    vertexShader: 'void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }',
-    fragmentShader,
-  }),
-);
-screenQuad.frustumCulled = false;
-scene.add(screenQuad);
-
+let frame = [2368, 1776]; // replaced by the rig's frame once it loads
+let groundY = 1590;        // and the rig's ground height
 function resize() {
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.getDrawingBufferSize(uniforms.uResolution.value);
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h);
+  // Fit the whole frame on screen, keeping its shape (extra space goes to the sides)
+  const scale = Math.max(frame[0] / w, frame[1] / h);
+  const halfW = (w * scale) / 2, halfH = (h * scale) / 2;
+  const cx = frame[0] / 2, cy = -frame[1] / 2; // centre of the frame (y flipped)
+  camera.left = cx - halfW;
+  camera.right = cx + halfW;
+  camera.top = cy + halfH;
+  camera.bottom = cy - halfH;
+  camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', resize);
-resize();
+
+// ----- Build the puppet from rig.json --------------------------------------
+const loader = new THREE.TextureLoader();
+
+function loadTexture(file) {
+  return new Promise((resolve, reject) => {
+    loader.load(FOLDER + file, (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace; // the PNGs are ordinary sRGB images
+      resolve(tex);
+    }, undefined, reject);
+  });
+}
+
+// One part = a joint (Group) holding a picture whose pivot sits at the joint.
+async function makePart(part, order) {
+  const tex = await loadTexture(part.image);
+  if (part.knee) {
+    // Legs are bendable pictures (see leg.js) rather than rigid ones
+    const leg = makeLeg(part, tex, order);
+    leg.mesh.userData.leg = leg;
+    return leg.mesh;
+  }
+  const { width: w, height: h } = tex.image;
+  const [px, py] = part.pivot;
+
+  // A plane the size of the image. By default it's centred on (0, 0); shift
+  // it so the pivot point is at (0, 0) instead, so rotating spins around the joint.
+  const geometry = new THREE.PlaneGeometry(w, h);
+  geometry.translate(w / 2 - px, -(h / 2 - py), 0);
+
+  const material = new THREE.MeshBasicMaterial({
+    map: tex,
+    transparent: true, // the PNG's see-through background stays see-through
+    depthTest: false,  // layering comes from the list order instead (below)
+  });
+  const sprite = new THREE.Mesh(geometry, material);
+  sprite.renderOrder = order; // rig.json lists parts back to front
+
+  const joint = new THREE.Group();
+  joint.name = part.name;
+  joint.add(sprite);
+  joint.position.set(part.at[0], -part.at[1], 0);
+  joint.rotation.z = -THREE.MathUtils.degToRad(part.rotate ?? 0); // rig: clockwise; Three: counter-clockwise
+  const s = part.scale ?? 1;
+  const [sx, sy] = Array.isArray(s) ? s : [s, s];
+  joint.scale.set(part.flipX ? -sx : sx, sy, 1);
+  // Remember the rest pose: animation adds small offsets to it every frame,
+  // so the creature can always settle back exactly here.
+  joint.userData.rest = {
+    x: joint.position.x, y: joint.position.y, rot: joint.rotation.z,
+    sx: joint.scale.x, sy: joint.scale.y,
+  };
+  return joint;
+}
+
+async function loadCreature() {
+  const rig = await (await fetch(FOLDER + 'rig.json')).json();
+  frame = rig.frame;
+  groundY = rig.ground;
+  resize();
+
+  const creature = new THREE.Group();
+  // Load all the pictures at once, then add them in back-to-front order
+  const joints = await Promise.all(rig.parts.map(makePart));
+  joints.forEach((joint) => creature.add(joint));
+  scene.add(creature);
+  // Look joints up by name, e.g. joint.tail
+  return Object.fromEntries(joints.map((j) => [j.name, j]));
+}
+
+// ----- Signs of life (life clock) -------------------------------------------
+// Small, slow movements that keep the creature alive even when it stands
+// still. Distances are in rig pixels (the frame is drawn at about a third of
+// its size on a laptop screen, so 6 here is about 2 on screen).
+// Try changing these numbers to see the effect.
+const ALIVE = {
+  breathSeconds: 3.4, // one breath in and out
+  chestSwell: 0.012,  // how much the torso grows on a breath in (1.2%)
+  rise: 5,            // how far the head and wing ride up on a breath in
+  headTilt: 1.2,      // degrees the head nods, slightly after the breath
+  wingLift: 1.0,      // degrees the wing lifts with each breath
+  tailSway: 2.5,      // degrees the tail sways
+  tailSeconds: 4.7,   // one slow tail sway (not a multiple of the breath, so
+                      // the two drift in and out of step and never look looped)
+};
+
+// The walk moves the whole body: it bobs down (rig pixels) and rocks nose
+// up / nose down (pitch, radians) around the middle of the torso.
+// Everything attached to the body (head, wing, tail, hips) rides along.
+const body = { bob: 0, pitch: 0, pivot: new THREE.Vector2() };
+
+// Where the moving body has carried a point that sits at (x, y) at rest
+function onBody(x, y) {
+  const c = Math.cos(body.pitch), s = Math.sin(body.pitch);
+  const dx = x - body.pivot.x, dy = y - body.pivot.y;
+  return new THREE.Vector2(body.pivot.x + c * dx - s * dy, body.pivot.y + s * dx + c * dy - body.bob);
+}
+
+// Set a joint to its rest pose, carried by the body, plus an offset
+// (rotation in degrees, clockwise like rig.json).
+function pose(joint, { dx = 0, dy = 0, rot = 0, sx = 1, sy = 1 } = {}) {
+  const r = joint.userData.rest;
+  const at = onBody(r.x, r.y);
+  joint.position.set(at.x + dx, at.y - dy, 0); // dy is downward, like the rig
+  joint.rotation.z = r.rot + body.pitch - THREE.MathUtils.degToRad(rot);
+  joint.scale.set(r.sx * sx, r.sy * sy, 1);
+}
+
+function animateAlive(joint, time) {
+  const TAU = Math.PI * 2;
+  const breath = Math.sin((time / ALIVE.breathSeconds) * TAU);           // -1..1
+  const later = Math.sin((time / ALIVE.breathSeconds) * TAU - 0.8);      // same, a beat behind
+  // A second, faster wave on the tail keeps its sway from looking mechanical
+  const sway = Math.sin((time / ALIVE.tailSeconds) * TAU)
+             + 0.3 * Math.sin((time / ALIVE.tailSeconds) * TAU * 2.3);
+
+  pose(joint.torso, { sy: 1 + ALIVE.chestSwell * breath, sx: 1 + ALIVE.chestSwell * 0.4 * breath });
+  pose(joint.head, { dy: -ALIVE.rise * breath, rot: ALIVE.headTilt * later });
+  pose(joint.wing, { dy: -ALIVE.rise * breath, rot: -ALIVE.wingLift * later });
+  pose(joint.tail, { rot: ALIVE.tailSway * sway });
+}
+
+// ----- Walk (walk clock) ---------------------------------------------------
+// A lazy walk: one leg moves at a time, each a quarter of a cycle after the
+// last (hind, front on the same side, other hind, other front), the way
+// cats, bears and most four-legged animals walk slowly.
+// Each foot spends `duty` of the cycle planted (sliding back as the world
+// scrolls), and the rest swinging forward through the air.
+const GAIT = {
+  cycle: 1.7,  // seconds for all four legs to take one step
+  duty: 0.65,  // share of the cycle each foot is on the ground
+  stride: 200, // how far a foot travels in one step (rig pixels)
+  lift: 45,    // how high a swinging paw lifts
+  peel: 22,    // degrees the heel lifts as a foot pushes off (toes stay down)
+  bob: 5,      // how far the body dips as feet land
+  pitch: 0.6,  // degrees the body rocks nose-up / nose-down
+  // When each leg starts its step, as a share of the cycle
+  phase: { 'near-hind-leg': 0, 'near-front-leg': 0.25, 'far-hind-leg': 0.5, 'far-front-leg': 0.75 },
+  // Where each toe is mid-step, ahead of its hip or shoulder: hind paws
+  // land under the hips, front paws a little ahead of the shoulders
+  reach: { 'near-hind-leg': 30, 'far-hind-leg': 50, 'near-front-leg': 215, 'far-front-leg': 165 },
+};
+// The ground must slide at exactly the speed a planted foot moves backward,
+// otherwise the feet look like they're skating.
+const GROUND_SPEED = GAIT.stride / (GAIT.cycle * GAIT.duty);
+
+const smooth = (u) => u * u * (3 - 2 * u); // "smoothstep" easing: slow start and finish
+const DEG = Math.PI / 180;
+
+// Where a toe should be at point t (0..1) in its own cycle, and how far the
+// paw is tilted (negative = heel up)
+function footTarget(name, leg, t) {
+  const center = leg.rest.hip.x + GAIT.reach[name], groundY = leg.rest.toe.y;
+  const peel = GAIT.peel * DEG;
+  if (t < GAIT.duty) {
+    // Planted: slide from front to back at ground speed. Near the end the
+    // heel peels up while the toes stay put, ready to push off.
+    const u = t / GAIT.duty;
+    return { x: center + GAIT.stride * (0.5 - u), y: groundY, tilt: -peel * smooth(Math.max(0, (u - 0.75) / 0.25)) };
+  }
+  // Swinging: arc from back to front, paw curled at first, flat for landing
+  const u = (t - GAIT.duty) / (1 - GAIT.duty);
+  return {
+    x: center + GAIT.stride * (smooth(u) - 0.5),
+    y: groundY + GAIT.lift * Math.sin(Math.PI * u),
+    tilt: -peel * (1 - smooth(u)),
+  };
+}
+
+const lastLegPhase = {}; // each leg's cycle position last frame, to hear landings
+
+function animateWalk(joint, walkTime) {
+  const phase = (walkTime / GAIT.cycle) % 1;
+  // Twice per cycle the body settles onto a newly planted hind paw, and rocks
+  body.bob = GAIT.bob * Math.sin(phase * Math.PI * 4);
+  body.pitch = GAIT.pitch * DEG * Math.cos(phase * Math.PI * 4);
+  for (const [name, offset] of Object.entries(GAIT.phase)) {
+    const leg = joint[name].userData.leg;
+    const t = (phase + 1 - offset) % 1;
+    // A leg's cycle runs 0 -> 1 then wraps back to 0, and that wrap is the
+    // moment its paw lands. Far paws are a little quieter.
+    if (t < (lastLegPhase[name] ?? t)) playFootstep(name.startsWith('near') ? 1 : 0.6);
+    lastLegPhase[name] = t;
+    const foot = footTarget(name, leg, t);
+    const hip = onBody(leg.rest.hip.x, leg.rest.hip.y);
+    poseLeg(leg, hip, new THREE.Vector2(foot.x, foot.y), foot.tilt);
+  }
+}
+
+// ----- Ground (placeholder until the landscape arrives) ---------------------
+// A line with evenly spaced marks that scroll left, so you can see whether
+// the planted feet move with the ground or skate over it.
+const MARK_GAP = 200;
+function makeGround(y) {
+  const ground = new THREE.Group();
+  const material = new THREE.MeshBasicMaterial({ color: 0xc9bed2, depthTest: false });
+  const line = new THREE.Mesh(new THREE.PlaneGeometry(frame[0] * 3, 3), material);
+  line.position.set(frame[0] / 2, y, 0);
+  ground.add(line);
+  for (let x = -frame[0]; x < frame[0] * 2; x += MARK_GAP) {
+    const mark = new THREE.Mesh(new THREE.PlaneGeometry(36, 8), material);
+    mark.position.set(x, y - 14, 0);
+    ground.add(mark);
+  }
+  ground.traverse((m) => { m.renderOrder = -1; }); // behind the creature
+  scene.add(ground);
+  return ground;
+}
 
 // ----- Springs: the secret to fluid motion ---------------------------------
 // Instead of jumping straight to a new value, a spring pulls toward it,
@@ -63,76 +266,7 @@ function stepSpring(s, dt, stiffness = 70, damping = 9) {
   s.value += s.velocity * dt;
 }
 
-// ----- Walk cycle ----------------------------------------------------------
-// One cycle = left step + right step. Each foot spends half the cycle on the
-// ground (sliding backward as the world scrolls) and half swinging forward.
-const WALK = { cycle: 1.1, stride: 0.9, lift: 0.28 };
-// The ground must slide at exactly the speed a planted foot moves backward,
-// otherwise the feet look like they're skating.
-const GROUND_SPEED = WALK.stride / (WALK.cycle * 0.5);
-
-// Where a foot is (relative to its hip) at point t (0..1) in its cycle
-function footOffset(t) {
-  if (t < 0.5) {
-    // Planted: slide from front to back
-    const u = t / 0.5;
-    return { x: WALK.stride * (0.5 - u), y: 0 };
-  }
-  // Swinging: arc from back to front, lifted off the ground
-  const u = (t - 0.5) / 0.5;
-  const eased = u * u * (3 - 2 * u); // "smoothstep" easing
-  return { x: WALK.stride * (-0.5 + eased), y: WALK.lift * Math.sin(Math.PI * u) };
-}
-
-// Two-bone IK ("inverse kinematics"): given the hip and where the foot must
-// be, work out where the knee goes. Uses the triangle rule (law of cosines).
-const THIGH = 0.62, SHIN = 0.62;
-function solveKnee(hip, foot, kneeOut) {
-  const dx = foot.x - hip.x, dy = foot.y - hip.y;
-  const dist = Math.hypot(dx, dy);
-  const d = Math.min(dist, THIGH + SHIN - 0.001); // can't reach further than the leg is long
-  const dirX = dx / dist, dirY = dy / dist;
-  const cosA = (THIGH * THIGH + d * d - SHIN * SHIN) / (2 * THIGH * d);
-  const sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
-  // Bend direction: perpendicular to hip->foot, pointing forward
-  const perpX = -dirY, perpY = dirX;
-  kneeOut.set(
-    hip.x + THIGH * (dirX * cosA + perpX * sinA),
-    hip.y + THIGH * (dirY * cosA + perpY * sinA),
-    hip.z,
-  );
-}
-
-// ----- Tail ----------------------------------------------------------------
-function updateTail(amount, time) {
-  const a = Math.max(0, amount);           // the spring can briefly dip below 0
-  const body = uniforms.uBody.value;
-  const length = 2.4 * a;
-  const segment = length / (TAIL_POINTS - 1);
-  const thickness = Math.min(1, a * 2.5);  // fattens quickly, then lengthens
-
-  let x = body.x - 0.62, y = body.y + 0.05;
-  let angle = Math.PI + 0.4;               // start pointing back and a little down
-  for (let i = 0; i < TAIL_POINTS; i++) {
-    const along = i / (TAIL_POINTS - 1);   // 0 at the base, 1 at the tip
-    // Each point swings a little later than the one before -> a wave travels down the tail
-    const z = 0.25 * along * Math.sin(time * 2.2 - i * 0.5) * a;
-    const radius = (0.26 + (0.04 - 0.26) * along) * thickness;
-    uniforms.uTail.value[i].set(x, y, z, radius);
-
-    angle -= 0.12;                                          // curl upward toward the tip
-    angle += 0.18 * along * Math.sin(time * 3.0 - i * 0.6); // sway
-    x += Math.cos(angle) * segment;
-    y += Math.sin(angle) * segment;
-  }
-}
-
 // ----- Controls ------------------------------------------------------------
-const tail = makeSpring(0);
-document.getElementById('tail').addEventListener('input', (e) => {
-  tail.target = parseFloat(e.target.value);
-});
-
 const soundButton = document.getElementById('sound');
 soundButton.addEventListener('click', () => {
   soundButton.textContent = toggleSound() ? '🔊 Sound on' : '🔇 Sound off';
@@ -140,6 +274,7 @@ soundButton.addEventListener('click', () => {
 
 // Play / pause the walk. Instead of freezing instantly, a spring eases the
 // walk speed between 1 (walking) and 0 (standing), so the creature slows to a halt.
+// (Nothing walks yet: the legs start moving in a later step.)
 const walkSpeed = makeSpring(1);
 const walkButton = document.getElementById('walk');
 function toggleWalk() {
@@ -150,80 +285,37 @@ function toggleWalk() {
 }
 walkButton.addEventListener('click', toggleWalk);
 window.addEventListener('keydown', (e) => {
-  // Skip when a button or slider has focus: space already "clicks" a focused
-  // button, so handling it here too would toggle twice.
+  // Skip when a button has focus: space already "clicks" a focused button,
+  // so handling it here too would toggle twice.
   if (e.code !== 'Space' || e.target.closest('button, input')) return;
   e.preventDefault(); // stop the page from scrolling
   toggleWalk();
 });
 
-// Drag to orbit the camera; let go and it springs back to profile
-const cam = makeSpring(0);
-let dragging = false;
-renderer.domElement.addEventListener('pointerdown', (e) => {
-  dragging = true;
-  renderer.domElement.setPointerCapture(e.pointerId);
-});
-renderer.domElement.addEventListener('pointermove', (e) => {
-  if (dragging) cam.target += e.movementX * 0.01;
-});
-renderer.domElement.addEventListener('pointerup', () => {
-  dragging = false;
-  cam.target = 0;
-});
-
 // ----- Animation loop ------------------------------------------------------
 let last = performance.now();
-let time = 0;     // "life clock": always runs (tail sway, springs, camera)
-let walkTime = 0; // "walk clock": only advances while walking (steps, bob, ground)
-const hip = new Vector3();
-// Each leg's cycle position from the previous frame, used to detect landings
-const lastLegPhase = [0, 0.5];
+let time = 0;     // "life clock": always runs (breathing, sway, springs)
+let walkTime = 0; // "walk clock": only advances while walking (steps, ground)
 
-renderer.setAnimationLoop((now) => {
-  const dt = Math.min((now - last) / 1000, 1 / 30); // avoid huge jumps after tab switches
-  last = now;
-  time += dt;
+resize();
+loadCreature().then((joint) => {
+  const ground = makeGround(-groundY);
+  body.pivot.set(joint.torso.userData.rest.x, joint.torso.userData.rest.y);
+  renderer.setAnimationLoop((now) => {
+    const dt = Math.min((now - last) / 1000, 1 / 30); // avoid huge jumps after tab switches
+    last = now;
+    time += dt;
 
-  stepSpring(tail, dt);
-  stepSpring(cam, dt, dragging ? 400 : 20, dragging ? 40 : 7);
-  // stiffness 25 / damping 10 = "critically damped": smooth, no overshoot
-  // (an overshoot would make the creature briefly walk backward)
-  stepSpring(walkSpeed, dt, 25, 10);
-  // A spring only *approaches* 0 and never quite gets there, so treat
-  // anything below 0.1% speed as fully stopped.
-  if (walkSpeed.value > 0.001) walkTime += dt * walkSpeed.value;
+    // stiffness 25 / damping 10 = "critically damped": smooth, no overshoot
+    // (an overshoot would make the creature briefly walk backward)
+    stepSpring(walkSpeed, dt, 25, 10);
+    if (walkSpeed.value > 0.001) walkTime += dt * walkSpeed.value;
 
-  const phase = (walkTime / WALK.cycle) % 1;
-
-  // Body bobs down each time a foot lands (twice per cycle)
-  const bob = -0.06 * Math.cos(phase * Math.PI * 4);
-  uniforms.uBody.value.set(0, 1.5 + bob, 0);
-  uniforms.uHead.value.set(0.62, 1.92 + bob * 0.5 + 0.03 * Math.sin(phase * Math.PI * 4 - 1), 0);
-
-  // Legs: near leg (z = +0.28) and far leg (z = -0.28), half a cycle apart
-  for (let leg = 0; leg < 2; leg++) {
-    const side = leg === 0 ? 0.28 : -0.28;
-    hip.set(0.05, uniforms.uBody.value.y - 0.38, side);
-    const legPhase = (phase + leg * 0.5) % 1;
-
-    // A leg's cycle runs 0 -> 1 then wraps back to 0, and that wrap is the
-    // moment the foot touches down. If the number went backward since last frame,
-    // the foot just landed. The far foot (leg 1) is a bit quieter.
-    if (legPhase < lastLegPhase[leg]) playFootstep(leg === 0 ? 1 : 0.7);
-    lastLegPhase[leg] = legPhase;
-
-    const f = footOffset(legPhase);
-    const foot = uniforms.uLegs.value[leg * 3 + 2].set(hip.x + f.x, 0.1 + f.y, side);
-    uniforms.uLegs.value[leg * 3].copy(hip);
-    solveKnee(hip, foot, uniforms.uLegs.value[leg * 3 + 1]);
-  }
-
-  updateTail(tail.value, time);
-  uniforms.uTailAmount.value = tail.value;
-  uniforms.uTime.value = time;
-  uniforms.uScroll.value = walkTime * GROUND_SPEED;
-  uniforms.uCamAngle.value = cam.value;
-
-  renderer.render(scene, camera);
+    animateWalk(joint, walkTime);
+    animateAlive(joint, time);
+    // The world moves, not the creature: slide the marks left, wrapping
+    // every MARK_GAP so they never run out
+    ground.position.x = -((walkTime * GROUND_SPEED) % MARK_GAP);
+    renderer.render(scene, camera);
+  });
 });

@@ -5,41 +5,65 @@
     1776
   ],
   "ground": 1590,
-  "notes": "Rest pose, cut straight from the original drawing (tools/cut_from_map.py), so every part sits at scale 1 exactly where it was cut. Parts are listed back to front. pivot = joint point on the part image (px); at = where that joint sits in the frame (px, 2x the original drawing); rotate = degrees, clockwise; shade = darken (1 = none). alternates = swap-in images for a part (blink, folded wing), cut from AI edits of the same drawing, each with its own pivot.",
+  "notes": "Rest pose, cut straight from the original drawing (tools/cut_from_map.py), so every part sits at scale 1 exactly where it was cut. Parts are listed back to front. pivot = joint point on the part image (px); at = where that joint sits in the frame (px, 2x the original drawing); rotate = degrees, clockwise; shade = darken (1 = none). alternates = swap-in images for a part (blink, folded wing), cut from AI edits of the same drawing, each with its own pivot. Legs also mark knee (middle bend), ankle (where the paw starts) and toe (front of the paw, on the ground), in frame px: the leg picture bends at these joints.",
   "parts": [
     {
       "name": "far-hind-leg",
       "image": "far-hind-leg.png",
       "pivot": [
-        246,
-        58
+        235,
+        94
       ],
       "at": [
         1250,
         1140
       ],
       "scale": 1,
-      "rotate": 0
+      "rotate": 0,
+      "knee": [
+        1035,
+        1300
+      ],
+      "ankle": [
+        1300,
+        1490
+      ],
+      "toe": [
+        1450,
+        1555
+      ]
     },
     {
       "name": "far-front-leg",
       "image": "far-front-leg.png",
       "pivot": [
-        137,
-        43
+        172,
+        -36
       ],
       "at": [
-        1625,
-        1235
+        1640,
+        1120
       ],
       "scale": 1,
-      "rotate": 0
+      "rotate": 0,
+      "knee": [
+        1650,
+        1340
+      ],
+      "ankle": [
+        1700,
+        1500
+      ],
+      "toe": [
+        1835,
+        1568
+      ]
     },
     {
       "name": "tail",
       "image": "tail.png",
       "pivot": [
-        851,
+        850,
         348
       ],
       "at": [
@@ -53,8 +77,8 @@
       "name": "torso",
       "image": "torso.png",
       "pivot": [
-        474,
-        304
+        490,
+        308
       ],
       "at": [
         1400,
@@ -67,7 +91,7 @@
       "name": "near-hind-leg",
       "image": "near-hind-leg.png",
       "pivot": [
-        404,
+        395,
         72
       ],
       "at": [
@@ -75,7 +99,19 @@
         960
       ],
       "scale": 1,
-      "rotate": 0
+      "rotate": 0,
+      "knee": [
+        820,
+        1215
+      ],
+      "ankle": [
+        735,
+        1515
+      ],
+      "toe": [
+        855,
+        1590
+      ]
     },
     {
       "name": "near-front-leg",
@@ -89,14 +125,26 @@
         1060
       ],
       "scale": 1,
-      "rotate": 0
+      "rotate": 0,
+      "knee": [
+        1785,
+        1250
+      ],
+      "ankle": [
+        2040,
+        1540
+      ],
+      "toe": [
+        2170,
+        1600
+      ]
     },
     {
       "name": "wing",
       "image": "wing.png",
       "pivot": [
-        1245,
-        649
+        1244,
+        648
       ],
       "at": [
         1600,
@@ -109,7 +157,7 @@
       "name": "head",
       "image": "head.png",
       "pivot": [
-        140,
+        139,
         711
       ],
       "at": [
@@ -125,7 +173,7 @@
       "part": "head",
       "image": "head-blink.png",
       "pivot": [
-        140,
+        139,
         711
       ]
     },
@@ -133,7 +181,7 @@
       "part": "wing",
       "image": "wing-folded.png",
       "pivot": [
-        845,
+        846,
         383
       ]
     }
