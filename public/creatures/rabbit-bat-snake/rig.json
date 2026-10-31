@@ -1,17 +1,124 @@
 {
   "name": "rabbit-bat-snake",
-  "frame": [2368, 1776],
+  "frame": [
+    2368,
+    1776
+  ],
   "ground": 1590,
-  "notes": "Rest pose. Parts are listed back to front. pivot = joint point on the part image (px); at = where that joint sits in the frame (px, 2x the original drawing); rotate = degrees, clockwise; shade = darken for far-side limbs (1 = none).",
+  "notes": "Rest pose, cut straight from the original drawing (tools/cut_from_map.py), so every part sits at scale 1 exactly where it was cut. Parts are listed back to front. pivot = joint point on the part image (px); at = where that joint sits in the frame (px, 2x the original drawing); rotate = degrees, clockwise; shade = darken (1 = none).",
   "parts": [
-    { "name": "far-hind-leg",  "image": "hind-leg.png",  "pivot": [163.5, 150],  "at": [990, 1040],  "scale": 0.60, "rotate": -4, "shade": 0.62 },
-    { "name": "far-front-leg", "image": "front-leg.png", "pivot": [137.5, 150],  "at": [1500, 1120], "scale": 0.54, "rotate": 4,  "shade": 0.62 },
-    { "name": "tail",          "image": "tail.png",      "pivot": [1320, 77],  "at": [880, 930],   "scale": 1.40, "rotate": 12, "flipX": true },
-    { "name": "near-hind-leg", "image": "hind-leg.png",  "pivot": [163.5, 150],  "at": [900, 1060],  "scale": 0.60, "rotate": 4 },
-    { "name": "near-front-leg","image": "front-leg.png", "pivot": [137.5, 150],  "at": [1580, 1130], "scale": 0.54, "rotate": -4 },
-    { "name": "torso",         "image": "torso.png",     "pivot": [0, 0],      "at": [609, 680],   "scale": 1.00, "rotate": 0 },
-    { "name": "wing",          "image": "wing-open.png", "pivot": [835, 480],  "at": [1650, 830],  "scale": 1.55, "rotate": 0 },
-    { "name": "head",          "image": "head.png",      "pivot": [100, 540],  "at": [1800, 960],  "scale": 1.39, "rotate": -6 }
+    {
+      "name": "far-hind-leg",
+      "image": "far-hind-leg.png",
+      "pivot": [
+        246,
+        58
+      ],
+      "at": [
+        1250,
+        1140
+      ],
+      "scale": 1,
+      "rotate": 0
+    },
+    {
+      "name": "far-front-leg",
+      "image": "far-front-leg.png",
+      "pivot": [
+        137,
+        43
+      ],
+      "at": [
+        1625,
+        1235
+      ],
+      "scale": 1,
+      "rotate": 0
+    },
+    {
+      "name": "tail",
+      "image": "tail.png",
+      "pivot": [
+        851,
+        348
+      ],
+      "at": [
+        960,
+        950
+      ],
+      "scale": 1,
+      "rotate": 0
+    },
+    {
+      "name": "torso",
+      "image": "torso.png",
+      "pivot": [
+        474,
+        304
+      ],
+      "at": [
+        1400,
+        1000
+      ],
+      "scale": 1,
+      "rotate": 0
+    },
+    {
+      "name": "near-hind-leg",
+      "image": "near-hind-leg.png",
+      "pivot": [
+        404,
+        72
+      ],
+      "at": [
+        1050,
+        960
+      ],
+      "scale": 1,
+      "rotate": 0
+    },
+    {
+      "name": "near-front-leg",
+      "image": "near-front-leg.png",
+      "pivot": [
+        119,
+        80
+      ],
+      "at": [
+        1715,
+        1060
+      ],
+      "scale": 1,
+      "rotate": 0
+    },
+    {
+      "name": "wing",
+      "image": "wing.png",
+      "pivot": [
+        1245,
+        649
+      ],
+      "at": [
+        1600,
+        800
+      ],
+      "scale": 1,
+      "rotate": 0
+    },
+    {
+      "name": "head",
+      "image": "head.png",
+      "pivot": [
+        140,
+        711
+      ],
+      "at": [
+        1850,
+        830
+      ],
+      "scale": 1,
+      "rotate": 0
+    }
   ],
   "alternates": {
     "head": "head-blink.png",

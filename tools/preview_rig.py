@@ -17,6 +17,12 @@ from PIL import Image, ImageEnhance
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def scale_xy(part):
+    """A part's scale: one number (same both ways) or [across, down] for a stretch."""
+    s = part["scale"]
+    return (s, s) if isinstance(s, (int, float)) else (s[0], s[1])
+
+
 def place(part, folder, frame):
     """Scale and rotate one part around its pivot, onto a frame-sized canvas."""
     img = Image.open(folder / part["image"]).convert("RGBA")
@@ -26,12 +32,13 @@ def place(part, folder, frame):
         rgb = ImageEnhance.Brightness(img.convert("RGB")).enhance(part["shade"])
         rgb.putalpha(img.getchannel("A"))
         img = rgb
-    s, th = part["scale"], math.radians(part.get("rotate", 0))
+    sx, sy = scale_xy(part)
+    th = math.radians(part.get("rotate", 0))
     (px, py), (ax, ay) = part["pivot"], part["at"]
     c, n = math.cos(th), math.sin(th)
-    # Inverse mapping (frame -> part image): p = pivot + R(-rotate) * (P - at) / scale
-    a, b = c / s, n / s
-    d, e = -n / s, c / s
+    # Inverse mapping (frame -> part image): p = pivot + S^-1 * R(-rotate) * (P - at)
+    a, b = c / sx, n / sx
+    d, e = -n / sy, c / sy
     data = (a, b, px - (a * ax + b * ay), d, e, py - (d * ax + e * ay))
     return img.transform(frame, Image.AFFINE, data, resample=Image.BICUBIC)
 

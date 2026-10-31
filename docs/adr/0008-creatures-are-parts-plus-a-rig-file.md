@@ -44,3 +44,9 @@ with a `shade` below 1.
   landmarks beats eyeballing outlines.
 - Parts generated separately don't always agree on anatomy (Krea's torso had a
   shorter neck), so the rig absorbs small mismatches by nudging and slight rotation.
+- Eyeballed placement looked right in a quick preview but wasn't. An onion skin
+  (`tools/onion_skin.py`: original in red, rig in cyan, matches in grey) showed
+  it immediately. Measured fitting (`tools/fit_part.py`) fixed the head and
+  wing, but not parts whose shapes differ. That led to cutting parts from the
+  original instead ([0009](0009-cut-parts-from-the-original-with-an-ai-colour-map.md)),
+  which makes the rest pose exact (every part at scale 1).

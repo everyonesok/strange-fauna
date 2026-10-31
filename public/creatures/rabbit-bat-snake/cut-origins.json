@@ -1,66 +1,82 @@
 {
-  "torso": {
-    "source": "rabbit-bat-snake-torso-subtractive.png",
+  "far-hind-leg": {
     "origin": [
-      609,
-      680
+      1004,
+      1082
     ],
-    "resize": 1
+    "size": [
+      470,
+      480
+    ]
   },
-  "head": {
-    "source": "rabbit-bat-snake-parts-v2.png",
+  "far-front-leg": {
     "origin": [
-      1198,
-      61
+      1488,
+      1192
     ],
-    "resize": 1
-  },
-  "head-blink": {
-    "source": "rabbit-bat-snake-parts-v2.png",
-    "origin": [
-      1809,
-      59
-    ],
-    "resize": 1
-  },
-  "wing-open": {
-    "source": "rabbit-bat-snake-parts-v2.png",
-    "origin": [
-      121,
-      92
-    ],
-    "resize": 1
-  },
-  "wing-folded": {
-    "source": "rabbit-bat-snake-parts-v2.png",
-    "origin": [
-      1505,
-      670
-    ],
-    "resize": 1
+    "size": [
+      382,
+      378
+    ]
   },
   "tail": {
-    "source": "rabbit-bat-snake-parts-v1.png",
     "origin": [
-      104,
-      1412
+      109,
+      602
     ],
-    "resize": 1
+    "size": [
+      907,
+      638
+    ]
   },
-  "front-leg": {
-    "source": "rabbit-bat-snake-frontleg.png",
+  "torso": {
     "origin": [
-      605,
-      161
+      926,
+      696
     ],
-    "resize": 0.5
+    "size": [
+      1102,
+      562
+    ]
   },
-  "hind-leg": {
-    "source": "rabbit-bat-snake-hindleg.png",
+  "near-hind-leg": {
     "origin": [
-      589,
-      105
+      646,
+      888
     ],
-    "resize": 0.5
+    "size": [
+      624,
+      705
+    ]
+  },
+  "near-front-leg": {
+    "origin": [
+      1596,
+      980
+    ],
+    "size": [
+      602,
+      626
+    ]
+  },
+  "wing": {
+    "origin": [
+      355,
+      151
+    ],
+    "size": [
+      1375,
+      809
+    ]
+  },
+  "head": {
+    "origin": [
+      1710,
+      119
+    ],
+    "size": [
+      518,
+      775
+    ]
   }
 }

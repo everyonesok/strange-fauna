@@ -14,3 +14,4 @@ these exist. New ones start from the [template](template.md).
 | [0006](0006-synthesized-sound-driven-by-animation.md) | Synthesize sound live, driven by the animation | Accepted |
 | [0007](0007-embrace-2d-cel-animation.md) | Embrace 2D cel animation, including its limitations | Accepted |
 | [0008](0008-creatures-are-parts-plus-a-rig-file.md) | Creatures are cut-out parts plus a rig file | Accepted |
+| [0009](0009-cut-parts-from-the-original-with-an-ai-colour-map.md) | Cut parts from the original drawing, using an AI colour map | Accepted |

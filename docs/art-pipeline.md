@@ -6,6 +6,69 @@ are in [ADR 0007](adr/0007-embrace-2d-cel-animation.md).
 Concept art and test results live in a local `references/` folder that is
 kept out of the repo, so the image paths below exist only on the artist's machine.
 
+## Recommended: cut the parts from the original
+
+Decided in [ADR 0009](adr/0009-cut-parts-from-the-original-with-an-ai-colour-map.md).
+The AI never redraws anything visible, so the assembled rest pose matches the
+concept art pixel for pixel. Two generations per creature, both with **Nano
+Banana 2** (`google/nano-banana-2`, 2K, 4:3), which kept the framing better
+than Krea 3 in side-by-side tests.
+
+**1. Colour map** (`references/separations/<creature>-segmap-nb2.png`)
+
+```text
+Turn this drawing into a flat-colour segmentation map of the creature's body
+parts. Keep the exact same framing, pose, size and position, so every part's
+silhouette lines up pixel-for-pixel with the original. Remove all line art,
+shading, texture and the ground shadow; the background becomes pure white. Fill
+each part with one solid flat colour: the head including ears, down to the jaw
+and throat = pure red; the body (back, belly, chest fur, neck) = yellow; the bat
+wing, membrane and arm bones = blue; the green snake tail = green; the front leg
+reaching forward to the rightmost foot, including its grey shoulder = magenta;
+the other front leg behind it, with the foot under the chest = cyan; the hind
+leg including its big grey thigh, whose foot is at the far left = orange; the
+dark brown hind leg reaching forward under the belly = purple.
+```
+
+Describe each leg by something visible (where its foot is, its colour), because
+"near" and "far" are ambiguous to the model.
+
+Concept art should have **no ground shadow**: shadows are drawn in code, and a
+shadow joining the feet makes the cut harder. (Only the rabbit-bat-snake has
+one; the cutter handles it by treating the map's white as background.)
+
+**2. Hidden areas** (`references/separations/<creature>-nowing-nb2.jpg`)
+
+```text
+Remove the bat wing completely. Where the wing covered the rabbit, continue the
+rabbit's grey back fur with one smooth back outline running from the rump up to
+the shoulders and neck, in the same ink line and flat colour style. Where the
+wing covered empty space, show the plain white background. Keep everything else
+exactly the same: same framing, pose, size and position of every part, so the
+result lines up pixel-for-pixel with the original.
+```
+
+**3. Cut and check**
+
+```bash
+python3 tools/cut_from_map.py rabbit-bat-snake references/separations/rabbit-bat-snake-segmap-nb2.png <preview-dir> --fill=torso:wing:references/separations/rabbit-bat-snake-nowing-nb2.jpg
+python3 tools/onion_skin.py rabbit-bat-snake <out.png>
+```
+
+- Sample the map's actual colours and put them in the palette in
+  `tools/cut_from_map.py`; models drift from the colours asked for.
+- The preview dir gets `<creature>-labels.png`, the original tinted by part, to
+  check the split.
+- Set each part's pivot (joint) in `rig.json`; `at` is the same joint in the
+  frame, and scale is always 1.
+- Still to do: the blinking head and folded wing as edits of the new cut-out
+  head and wing, so they match.
+
+## Earlier experiment: Krea-drawn parts
+
+Superseded by the process above: Krea redrew each part, so the parts never
+quite matched the original. Kept for the prompts and learnings.
+
 **Model:** Krea 3 (`krea/krea-3`), an instruction-following image editor, with
 `thinking_mode: "high"` so it plans the multi-step edit first.
 
@@ -121,7 +184,7 @@ Learnings:
   image at the knee (mesh deformation), which hides joints better than
   separate pieces.
 
-## 2. Cut out and assemble the parts
+## 2. Cut out and assemble the parts (Krea-drawn parts)
 
 1. **Cut:** `python3 tools/cut_parts.py` cuts each part out of its sheet into a
    transparent PNG in `public/creatures/<creature>/`. Each part is listed in the
