@@ -3,8 +3,7 @@
 //
 // Each body part is a flat picture (a "sprite") pinned at its joint. A joint
 // is a THREE.Group: moving or rotating the group moves the picture with it,
-// around the pivot point. This step only shows the rest pose; later steps
-// rotate the joints to walk.
+// around the pivot point. Legs are the exception: they bend (see leg.js).
 // ---------------------------------------------------------------------------
 import * as THREE from 'three';
 import { toggleSound, playFootstep } from './audio.js';
@@ -57,18 +56,9 @@ function loadTexture(file) {
   });
 }
 
-// One part = a joint (Group) holding a picture whose pivot sits at the joint.
-async function makePart(part, order) {
-  const tex = await loadTexture(part.image);
-  if (part.knee) {
-    // Legs are bendable pictures (see leg.js) rather than rigid ones
-    const leg = makeLeg(part, tex, order);
-    leg.mesh.userData.leg = leg;
-    return leg.mesh;
-  }
+// A flat picture whose pivot point sits at (0, 0)
+function makeSprite(tex, [px, py], order) {
   const { width: w, height: h } = tex.image;
-  const [px, py] = part.pivot;
-
   // A plane the size of the image. By default it's centred on (0, 0); shift
   // it so the pivot point is at (0, 0) instead, so rotating spins around the joint.
   const geometry = new THREE.PlaneGeometry(w, h);
@@ -81,10 +71,21 @@ async function makePart(part, order) {
   });
   const sprite = new THREE.Mesh(geometry, material);
   sprite.renderOrder = order; // rig.json lists parts back to front
+  return sprite;
+}
 
+// One part = a joint (Group) holding a picture whose pivot sits at the joint.
+async function makePart(part, order) {
+  const tex = await loadTexture(part.image);
+  if (part.knee) {
+    // Legs are bendable pictures (see leg.js) rather than rigid ones
+    const leg = makeLeg(part, tex, order);
+    leg.mesh.userData.leg = leg;
+    return leg.mesh;
+  }
   const joint = new THREE.Group();
   joint.name = part.name;
-  joint.add(sprite);
+  joint.add(makeSprite(tex, part.pivot, order));
   joint.position.set(part.at[0], -part.at[1], 0);
   joint.rotation.z = -THREE.MathUtils.degToRad(part.rotate ?? 0); // rig: clockwise; Three: counter-clockwise
   const s = part.scale ?? 1;
@@ -103,6 +104,7 @@ async function loadCreature() {
   const rig = await (await fetch(FOLDER + 'rig.json')).json();
   frame = rig.frame;
   groundY = rig.ground;
+  GAIT = { ...DEFAULT_GAIT, ...rig.gait }; // the creature's own walk numbers win
   resize();
 
   const creature = new THREE.Group();
@@ -111,7 +113,26 @@ async function loadCreature() {
   joints.forEach((joint) => creature.add(joint));
   scene.add(creature);
   // Look joints up by name, e.g. joint.tail
-  return Object.fromEntries(joints.map((j) => [j.name, j]));
+  const byName = Object.fromEntries(joints.map((j) => [j.name, j]));
+
+  // Swap-in pictures (a blink, a folded wing) go on the same joint as their
+  // part, hidden, so they move exactly like it. showSwap() flips between them.
+  for (const [name, alt] of Object.entries(rig.alternates ?? {})) {
+    const joint = byName[alt.part];
+    const order = joint.children[0].renderOrder;
+    const sprite = makeSprite(await loadTexture(alt.image), alt.pivot, order);
+    sprite.visible = false;
+    sprite.name = name;
+    joint.add(sprite);
+  }
+  return byName;
+}
+
+// Show a part's swap-in picture by name, or its usual one when name is null
+function showSwap(joint, name) {
+  joint.children.forEach((sprite, i) => {
+    sprite.visible = name ? sprite.name === name : i === 0;
+  });
 }
 
 // ----- Signs of life (life clock) -------------------------------------------
@@ -166,13 +187,43 @@ function animateAlive(joint, time) {
   pose(joint.tail, { rot: ALIVE.tailSway * sway });
 }
 
+// ----- Little moments (life clock) -----------------------------------------
+// Now and then a part swaps to another picture for a moment: a blink, or the
+// wing folding to rest. The gaps are random, so they never look looped.
+// Each: which part, which swap-in picture, seconds between (shortest,
+// longest), and seconds it lasts (shortest, longest).
+const MOMENTS = [
+  { part: 'head', swap: 'head-blink', every: [2.5, 6], lasts: [0.12, 0.16] },
+  { part: 'wing', swap: 'wing-folded', every: [10, 18], lasts: [2, 4] },
+];
+const between = ([lo, hi]) => lo + Math.random() * (hi - lo);
+
+function animateMoments(joint, time) {
+  for (const m of MOMENTS) {
+    if (!joint[m.part]) continue;
+    m.start ??= time + between(m.every); // first time: pick when it happens
+    if (time >= m.start && !m.end) {
+      m.end = time + between(m.lasts);
+      showSwap(joint[m.part], m.swap);
+    } else if (m.end && time >= m.end) {
+      showSwap(joint[m.part], null);
+      // Blinks sometimes come in pairs, like real ones
+      const again = m.swap === 'head-blink' && Math.random() < 0.25;
+      m.start = time + (again ? 0.18 : between(m.every));
+      m.end = null;
+    }
+  }
+}
+
 // ----- Walk (walk clock) ---------------------------------------------------
 // A lazy walk: one leg moves at a time, each a quarter of a cycle after the
 // last (hind, front on the same side, other hind, other front), the way
 // cats, bears and most four-legged animals walk slowly.
 // Each foot spends `duty` of the cycle planted (sliding back as the world
 // scrolls), and the rest swinging forward through the air.
-const GAIT = {
+// These are the defaults: each creature's rig.json has a "gait" with its own
+// numbers, which replace these when it loads (see loadCreature).
+const DEFAULT_GAIT = {
   cycle: 1.7,  // seconds for all four legs to take one step
   duty: 0.65,  // share of the cycle each foot is on the ground
   stride: 200, // how far a foot travels in one step (rig pixels)
@@ -182,13 +233,14 @@ const GAIT = {
   pitch: 0.6,  // degrees the body rocks nose-up / nose-down
   // When each leg starts its step, as a share of the cycle
   phase: { 'near-hind-leg': 0, 'near-front-leg': 0.25, 'far-hind-leg': 0.5, 'far-front-leg': 0.75 },
-  // Where each toe is mid-step, ahead of its hip or shoulder: hind paws
-  // land under the hips, front paws a little ahead of the shoulders
-  reach: { 'near-hind-leg': 30, 'far-hind-leg': 50, 'near-front-leg': 215, 'far-front-leg': 165 },
+  // Where each toe is mid-step, ahead of its hip or shoulder (rig pixels).
+  // It depends on how the creature is drawn, so each rig sets its own.
+  reach: { 'near-hind-leg': 0, 'far-hind-leg': 0, 'near-front-leg': 0, 'far-front-leg': 0 },
 };
+let GAIT = DEFAULT_GAIT;
 // The ground must slide at exactly the speed a planted foot moves backward,
 // otherwise the feet look like they're skating.
-const GROUND_SPEED = GAIT.stride / (GAIT.cycle * GAIT.duty);
+const groundSpeed = () => GAIT.stride / (GAIT.cycle * GAIT.duty);
 
 const smooth = (u) => u * u * (3 - 2 * u); // "smoothstep" easing: slow start and finish
 const DEG = Math.PI / 180;
@@ -215,11 +267,14 @@ function footTarget(name, leg, t) {
 
 const lastLegPhase = {}; // each leg's cycle position last frame, to hear landings
 
-function animateWalk(joint, walkTime) {
+// walking: 1 while walking, easing to 0 as the creature stops. As it eases
+// down, lifted paws settle onto the ground and the body stops rocking, so it
+// never freezes with a foot in the air.
+function animateWalk(joint, walkTime, walking = 1) {
   const phase = (walkTime / GAIT.cycle) % 1;
   // Twice per cycle the body settles onto a newly planted hind paw, and rocks
-  body.bob = GAIT.bob * Math.sin(phase * Math.PI * 4);
-  body.pitch = GAIT.pitch * DEG * Math.cos(phase * Math.PI * 4);
+  body.bob = walking * GAIT.bob * Math.sin(phase * Math.PI * 4);
+  body.pitch = walking * GAIT.pitch * DEG * Math.cos(phase * Math.PI * 4);
   for (const [name, offset] of Object.entries(GAIT.phase)) {
     const leg = joint[name].userData.leg;
     const t = (phase + 1 - offset) % 1;
@@ -228,8 +283,10 @@ function animateWalk(joint, walkTime) {
     if (t < (lastLegPhase[name] ?? t)) playFootstep(name.startsWith('near') ? 1 : 0.6);
     lastLegPhase[name] = t;
     const foot = footTarget(name, leg, t);
+    const ground = leg.rest.toe.y;
+    const y = ground + (foot.y - ground) * walking; // lifted paws come down
     const hip = onBody(leg.rest.hip.x, leg.rest.hip.y);
-    poseLeg(leg, hip, new THREE.Vector2(foot.x, foot.y), foot.tilt);
+    poseLeg(leg, hip, new THREE.Vector2(foot.x, y), foot.tilt * walking); // and lie flat
   }
 }
 
@@ -273,8 +330,8 @@ soundButton.addEventListener('click', () => {
 });
 
 // Play / pause the walk. Instead of freezing instantly, a spring eases the
-// walk speed between 1 (walking) and 0 (standing), so the creature slows to a halt.
-// (Nothing walks yet: the legs start moving in a later step.)
+// walk speed between 1 (walking) and 0 (standing), so the creature slows to a
+// halt and settles onto all four feet.
 const walkSpeed = makeSpring(1);
 const walkButton = document.getElementById('walk');
 function toggleWalk() {
@@ -311,11 +368,12 @@ loadCreature().then((joint) => {
     stepSpring(walkSpeed, dt, 25, 10);
     if (walkSpeed.value > 0.001) walkTime += dt * walkSpeed.value;
 
-    animateWalk(joint, walkTime);
+    animateWalk(joint, walkTime, THREE.MathUtils.clamp(walkSpeed.value, 0, 1));
     animateAlive(joint, time);
+    animateMoments(joint, time);
     // The world moves, not the creature: slide the marks left, wrapping
     // every MARK_GAP so they never run out
-    ground.position.x = -((walkTime * GROUND_SPEED) % MARK_GAP);
+    ground.position.x = -((walkTime * groundSpeed()) % MARK_GAP);
     renderer.render(scene, camera);
   });
 });

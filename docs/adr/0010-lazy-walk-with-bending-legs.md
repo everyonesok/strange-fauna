@@ -58,8 +58,13 @@ toe should be at each moment:
   joints (a long tentacle, say) would need more bones.
 - **Fallback:** if a lazy walk never feels right for some creature, try a
   bound for that one.
-- Still open: pausing mid-stride freezes a foot in the air (see
-  [0005](0005-procedural-walk-and-two-clocks.md)).
+- Pausing eases every lifted paw onto the ground and stops the body rocking,
+  tied to the same spring that slows the walk, so the creature never freezes
+  with a foot in the air.
+- Gait numbers live in each creature's `rig.json` (`gait`); any left out use
+  the defaults in `src/main.js`.
+- Now and then a part swaps to another picture for a moment (a blink, the
+  wing folding to rest), at random gaps on the life clock (`MOMENTS`).
 
 ## Learnings
 

@@ -26,8 +26,8 @@ walk while still rotating and watching the creature.
 - The walk adapts automatically to future body changes.
 - Pausing stops the walk but leaves the creature alive and rotatable.
 - Anything new must choose its clock: *is this part of walking, or part of being alive?*
-- Known gap: pausing mid-stride freezes a foot in the air. The planned fix is
-  to settle onto both feet when stopping.
+- Pausing mid-stride used to freeze a foot in the air. Fixed in
+  [0010](0010-lazy-walk-with-bending-legs.md): the feet settle as the walk slows.
 
 ## Learnings
 

@@ -5,7 +5,28 @@
     1776
   ],
   "ground": 1590,
-  "notes": "Rest pose, cut straight from the original drawing (tools/cut_from_map.py), so every part sits at scale 1 exactly where it was cut. Parts are listed back to front. pivot = joint point on the part image (px); at = where that joint sits in the frame (px, 2x the original drawing); rotate = degrees, clockwise; shade = darken (1 = none). alternates = swap-in images for a part (blink, folded wing), cut from AI edits of the same drawing, each with its own pivot. Legs also mark knee (middle bend), ankle (where the paw starts) and toe (front of the paw, on the ground), in frame px: the leg picture bends at these joints.",
+  "gait": {
+    "cycle": 1.7,
+    "duty": 0.65,
+    "stride": 200,
+    "lift": 45,
+    "peel": 22,
+    "bob": 5,
+    "pitch": 0.6,
+    "phase": {
+      "near-hind-leg": 0,
+      "near-front-leg": 0.25,
+      "far-hind-leg": 0.5,
+      "far-front-leg": 0.75
+    },
+    "reach": {
+      "near-hind-leg": 30,
+      "far-hind-leg": 50,
+      "near-front-leg": 215,
+      "far-front-leg": 165
+    }
+  },
+  "notes": "Rest pose, cut straight from the original drawing (tools/cut_from_map.py), so every part sits at scale 1 exactly where it was cut. Parts are listed back to front. pivot = joint point on the part image (px); at = where that joint sits in the frame (px, 2x the original drawing); rotate = degrees, clockwise; shade = darken (1 = none). alternates = swap-in images for a part (blink, folded wing), cut from AI edits of the same drawing, each with its own pivot. Legs also mark knee (middle bend), ankle (where the paw starts) and toe (front of the paw, on the ground), in frame px: the leg picture bends at these joints. gait = this creature's walk (see GAIT in src/main.js for what each number does); leave a number out to use the default.",
   "parts": [
     {
       "name": "far-hind-leg",
