@@ -62,3 +62,24 @@ was cut. The rest pose *is* the drawing.
   Keeping only each part's main connected region removes the stray slivers.
 - The pale ground shadow connects the feet, which made the gaps between the
   legs look "inside" the creature. Treating the map's white as background fixes it.
+
+Once the parts moved ([0010](0010-lazy-walk-with-bending-legs.md)), the seams
+between them showed:
+
+- **The tucked-under part of a piece has to be its own colour.** Copied from
+  the drawing, it carries the neighbour's pixels and outline, which swing out
+  as a pale band. The cutter now paints it in the part's own average colour.
+- **Far legs tuck deep under the body, but not under the near legs.** The body
+  never moves away, so the deep tuck stays hidden. A near leg steps away, and
+  the tuck under it showed up as a stray wedge.
+- **Reaching across a gap grabs loose bits**, like a sliver of the other leg's
+  outline. Only pieces still attached to the part are kept.
+- **Ask for a slim body where a near leg is removed.** Asking for "a rounded
+  rump and haunch" painted a second thigh on the body, which stood still while
+  the real one swung.
+- **Removing a near leg uncovers the far one.** Without a colour map of the
+  edit, the far leg's top got copied onto the body. With one (passed after
+  the edit in `--fill`), the body takes only body pixels and the far leg takes
+  its own top.
+- Edits that remove two legs at once are unreliable (wrong legs removed,
+  other legs moved). One leg per edit works.

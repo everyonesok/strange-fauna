@@ -1,6 +1,7 @@
 # 0005. Procedural walk with IK, driven by a separate walk clock
 
-- **Status:** Accepted
+- **Status:** Accepted (the gait, the bending legs and the foot path are
+  detailed in [0010](0010-lazy-walk-with-bending-legs.md))
 - **Date:** 2026-10-28
 
 ## Context
