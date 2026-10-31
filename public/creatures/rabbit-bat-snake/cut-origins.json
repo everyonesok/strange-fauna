@@ -1,0 +1,66 @@
+{
+  "torso": {
+    "source": "rabbit-bat-snake-torso-subtractive.png",
+    "origin": [
+      609,
+      680
+    ],
+    "resize": 1
+  },
+  "head": {
+    "source": "rabbit-bat-snake-parts-v2.png",
+    "origin": [
+      1198,
+      61
+    ],
+    "resize": 1
+  },
+  "head-blink": {
+    "source": "rabbit-bat-snake-parts-v2.png",
+    "origin": [
+      1809,
+      59
+    ],
+    "resize": 1
+  },
+  "wing-open": {
+    "source": "rabbit-bat-snake-parts-v2.png",
+    "origin": [
+      121,
+      92
+    ],
+    "resize": 1
+  },
+  "wing-folded": {
+    "source": "rabbit-bat-snake-parts-v2.png",
+    "origin": [
+      1505,
+      670
+    ],
+    "resize": 1
+  },
+  "tail": {
+    "source": "rabbit-bat-snake-parts-v1.png",
+    "origin": [
+      104,
+      1412
+    ],
+    "resize": 1
+  },
+  "front-leg": {
+    "source": "rabbit-bat-snake-frontleg.png",
+    "origin": [
+      605,
+      161
+    ],
+    "resize": 0.5
+  },
+  "hind-leg": {
+    "source": "rabbit-bat-snake-hindleg.png",
+    "origin": [
+      589,
+      105
+    ],
+    "resize": 0.5
+  }
+}

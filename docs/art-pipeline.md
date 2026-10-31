@@ -121,7 +121,33 @@ Learnings:
   image at the knee (mesh deformation), which hides joints better than
   separate pieces.
 
-## 2. Background: multiplane layers
+## 2. Cut out and assemble the parts
+
+1. **Cut:** `python3 tools/cut_parts.py` cuts each part out of its sheet into a
+   transparent PNG in `public/creatures/<creature>/`. Each part is listed in the
+   script with its source sheet, a crop box and a seed point inside it. The
+   script grabs the connected drawing under the seed (like a magic wand), fills
+   holes so eye highlights stay opaque, and softens the edge.
+2. **Fit:** edit `public/creatures/<creature>/rig.json` (format in
+   [ADR 0008](adr/0008-creatures-are-parts-plus-a-rig-file.md)), then check the fit with
+   `python3 tools/preview_rig.py <creature> <out-dir>`. It draws the assembly
+   alone and over a faded copy of the original drawing.
+
+**Rabbit-bat-snake assembly learnings:**
+
+- **Tuck leg tops behind the torso.** Krea's torso already has a haunch and a
+  shoulder drawn in, so the torso hides the joints. Legs on top of the body
+  showed their outlined tops as seams.
+- **Fit the head by its eye, not its outline.** Matching the iris and the
+  ear-tip height between the original and the cut-out gave the exact scale
+  (1.39). The head then needed nudging down because Krea's redrawn torso has a
+  shorter neck than the original.
+- **Layer order follows the original:** ears in front of the wing, wing in
+  front of the body.
+- **Far-side legs reuse the near legs, darkened to 62%.** That alone gives
+  convincing depth.
+
+## 3. Background: multiplane layers
 
 One generation per layer, each starting from `references/background.png`.
 These are untested so far.

@@ -1,0 +1,20 @@
+{
+  "name": "rabbit-bat-snake",
+  "frame": [2368, 1776],
+  "ground": 1590,
+  "notes": "Rest pose. Parts are listed back to front. pivot = joint point on the part image (px); at = where that joint sits in the frame (px, 2x the original drawing); rotate = degrees, clockwise; shade = darken for far-side limbs (1 = none).",
+  "parts": [
+    { "name": "far-hind-leg",  "image": "hind-leg.png",  "pivot": [163.5, 150],  "at": [990, 1040],  "scale": 0.60, "rotate": -4, "shade": 0.62 },
+    { "name": "far-front-leg", "image": "front-leg.png", "pivot": [137.5, 150],  "at": [1500, 1120], "scale": 0.54, "rotate": 4,  "shade": 0.62 },
+    { "name": "tail",          "image": "tail.png",      "pivot": [1320, 77],  "at": [880, 930],   "scale": 1.40, "rotate": 12, "flipX": true },
+    { "name": "near-hind-leg", "image": "hind-leg.png",  "pivot": [163.5, 150],  "at": [900, 1060],  "scale": 0.60, "rotate": 4 },
+    { "name": "near-front-leg","image": "front-leg.png", "pivot": [137.5, 150],  "at": [1580, 1130], "scale": 0.54, "rotate": -4 },
+    { "name": "torso",         "image": "torso.png",     "pivot": [0, 0],      "at": [609, 680],   "scale": 1.00, "rotate": 0 },
+    { "name": "wing",          "image": "wing-open.png", "pivot": [835, 480],  "at": [1650, 830],  "scale": 1.55, "rotate": 0 },
+    { "name": "head",          "image": "head.png",      "pivot": [100, 540],  "at": [1800, 960],  "scale": 1.39, "rotate": -6 }
+  ],
+  "alternates": {
+    "head": "head-blink.png",
+    "wing": "wing-folded.png"
+  }
+}
